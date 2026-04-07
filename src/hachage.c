@@ -1,7 +1,11 @@
 #include "hachage.h"
 
-uint32_t checksomme32b(const void *C, size_t n, uint32_t b) {
-    if (b == 0) return 0;
+uint32_t checksum32b(const void *C, size_t n, uint32_t b) {
+    if (b == 0) {
+        fprintf(stderr, "checksomme32b: b ne peut pas etre égal a 0.\n");
+        exit(EXIT_FAILURE);
+    }
+
     uint32_t somme = 0;
     const uint8_t *donnee = (const uint8_t *)C;
     size_t i;
@@ -28,4 +32,15 @@ uint32_t sha1b(const void *C, size_t n, uint32_t b) {
     (void) n;
     (void) b;
     return 0;
+}
+
+uint32_t h(const char* fichier, const void *C, size_t n, uint32_t b) {
+    if (strstr(fichier, ".cks") != NULL) {
+        return checksum32b(C, n, b);
+    } else if (strstr(fichier, ".sha") != NULL) {
+        return sha1b(C, n, b);
+    } else {
+        fprintf(stderr, "h: l'extension du fichier %s n'est pas pris en compte.\n", fichier);
+        exit(EXIT_FAILURE);
+    }
 }
