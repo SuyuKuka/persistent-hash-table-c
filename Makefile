@@ -1,5 +1,5 @@
 CC = gcc
-CFLAGS = -Wall -Wextra -g -pthread 
+CFLAGS = -Wall -Wextra -g -pthread -Iinclude
 LDFLAGS = -lcrypto -pthread
 TARGET = hachement
 
