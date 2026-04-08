@@ -20,10 +20,10 @@ uint32_t checksum32b(const void *C, size_t n, uint32_t b) {
     switch (n % 4) {
         case 3:
             dernier_mot |= ((uint32_t)donnee[i + 2] << 8);
-            [[fallthrough]];
+            __attribute__((fallthrough));
         case 2:
             dernier_mot |= ((uint32_t)donnee[i + 1] << 16);
-            [[fallthrough]];
+            __attribute__((fallthrough));
         case 1:
             dernier_mot |= ((uint32_t)donnee[i] << 24);
             somme += dernier_mot;
