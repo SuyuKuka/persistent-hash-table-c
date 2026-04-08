@@ -12,26 +12,42 @@ uint32_t checksum32b(const void *C, size_t n, uint32_t b) {
 
     for (i = 0; i + 3 < n; i += 4) {
         uint32_t mot;
-        mot = donnee[i] | (donnee[i+1] << 8) | (donnee[i+2] << 16) | (donnee[i+3] << 24);
+        mot = ((uint32_t)donnee[i] << 24) | ((uint32_t)donnee[i+1] << 16) | ((uint32_t)donnee[i+2] << 8) | donnee[i+3];
         somme += mot; 
     }
 
-    if (i < n) {
-        uint32_t dernier_mot  = 0;
-        dernier_mot  |= donnee[i];
-        if (i + 1 < n) dernier_mot  |= (donnee[i+1] << 8);
-        if (i + 2 < n) dernier_mot  |= (donnee[i+2] << 16);
-        somme += dernier_mot ;
+    uint32_t dernier_mot = 0;
+    switch (n % 4) {
+        case 3:
+            dernier_mot |= ((uint32_t)donnee[i + 2] << 8);
+            [[fallthrough]];
+        case 2:
+            dernier_mot |= ((uint32_t)donnee[i + 1] << 16);
+            [[fallthrough]];
+        case 1:
+            dernier_mot |= ((uint32_t)donnee[i] << 24);
+            somme += dernier_mot;
+            break;
+        case 0:
+            break;
     }
 
     return somme % b;
 }
 
 uint32_t sha1b(const void *C, size_t n, uint32_t b) {
-    (void) C;
-    (void) n;
-    (void) b;
-    return 0;
+    if (b == 0) {
+        fprintf(stderr, "sha1b: b ne peut pas etre égal a 0.\n");
+        exit(EXIT_FAILURE);
+    }
+
+    uint32_t indice = 0;
+    unsigned char md[20];
+
+    SHA1((const unsigned char *)C, n, md);
+    indice = ((uint32_t)md[16] << 24) | ((uint32_t)md[17] << 16) | ((uint32_t)md[18] << 8)  | ((uint32_t)md[19]);
+
+    return indice % b;
 }
 
 uint32_t h(const char* fichier, const void *C, size_t n, uint32_t b) {
