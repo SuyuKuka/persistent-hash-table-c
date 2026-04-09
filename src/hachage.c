@@ -50,13 +50,13 @@ uint32_t sha1b(const void *C, size_t n, uint32_t b) {
     return indice % b;
 }
 
-uint32_t h(const char* fichier, const void *C, size_t n, uint32_t b) {
-    if (strstr(fichier, ".cks") != NULL) {
+uint32_t h(const char* nom_table, const void *C, size_t n, uint32_t b) {
+    if (strstr(nom_table, ".cks") != NULL) {
         return checksum32b(C, n, b);
-    } else if (strstr(fichier, ".sha") != NULL) {
+    } else if (strstr(nom_table, ".sha") != NULL) {
         return sha1b(C, n, b);
     } else {
-        fprintf(stderr, "h: l'extension du fichier %s n'est pas pris en compte.\n", fichier);
+        fprintf(stderr, "h: l'extension de la table %s n'est pas pris en compte.\n", nom_table);
         exit(EXIT_FAILURE);
     }
 }
