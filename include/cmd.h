@@ -7,7 +7,10 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <sys/mman.h>
+#include <sys/stat.h>
 #include "bloc.h"
+
+uint32_t get_b(int fd);
 
 void make_cmd(const char *nom_table, uint32_t b);
 

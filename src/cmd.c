@@ -1,11 +1,37 @@
 #include "cmd.h"
 
+uint32_t get_b(int fd) {
+    struct stat st;
+    uint32_t b;
+
+    if (fstat(fd, &st) == -1) {
+        perror("fstat (get_b)");
+        close(fd);
+        exit(EXIT_FAILURE);
+    }
+
+    if (st.st_size % sizeof(struct hache_entree) != 0) {
+        fprintf(stderr, "get_b: la table est corrompue.\n");
+        close(fd);
+        exit(EXIT_FAILURE);
+    }
+
+    b = st.st_size / sizeof(struct hache_entree);
+    if (b == 0) {
+        fprintf(stderr, "get_b: la table est vide.\n");
+        close(fd);
+        exit(EXIT_FAILURE);
+    }
+
+    return b;
+}
+
 void make_cmd(const char *nom_table, uint32_t b) {
     if (b == 0) {
         fprintf(stderr, "make: b ne peut pas etre egal a 0.\n");
         exit(EXIT_FAILURE);
     }
-    
+
     int fd;
     size_t taille = b * sizeof(struct hache_entree);
 
@@ -36,13 +62,53 @@ void make_cmd(const char *nom_table, uint32_t b) {
 
     if (munmap(table, taille) == -1) {
         perror("munmap (make)");
+        close(fd);
+        exit(EXIT_FAILURE);
     }
 
     close(fd);
 }
 
-void free_cmd() {
-    
+// TODO: afficher le nombre de chaine, fichiers, objets dans la table
+// Structure de la table pas encore adapté pour cela (manque un uint32_t type)
+void free_cmd(const char *nom_table) {
+    int fd;
+    size_t taille;
+    uint32_t b;
+    uint32_t bloc_libre = 0;
+
+    fd = open(nom_table, O_RDONLY);
+    if (fd < 0) {
+        perror("open (free)");
+        exit(EXIT_FAILURE);
+    }
+
+    b = get_b(fd);
+    taille = b * sizeof(struct hache_entree);
+    struct hache_entree *table = mmap(NULL, taille, PROT_READ, MAP_SHARED, fd, 0);
+    if (table == MAP_FAILED) {
+        perror("mmap (free)");
+        close(fd);
+        exit(EXIT_FAILURE);
+    }
+
+    for (uint32_t i = 0; i < b; i++) {
+        if (table[i].longueur == BLOC_LIBRE) {
+            bloc_libre++;
+        }
+    }
+
+    printf("Blocs libres: %u\n", bloc_libre);
+    printf("Blocs occupes: %u\n", b - bloc_libre);
+    printf("Taux de remplissage: %.2f%% \n", ((double)(b - bloc_libre) / (double)b) * 100.0);
+
+    if (munmap(table, taille) == -1) {
+        perror("munmap (free)");
+        close(fd);
+        exit(EXIT_FAILURE);
+    }
+
+    close(fd);
 }
 
 void insertstring_cmd() {
