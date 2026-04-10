@@ -1,5 +1,5 @@
 CC = gcc
-CFLAGS = -Wall -Wextra -g -pthread -Iinclude
+CFLAGS = -Wall -Wextra -g -pthread -Iinclude -MMD -MP
 LDFLAGS = -lcrypto -pthread
 TARGET = hachement
 
@@ -8,6 +8,7 @@ OBJDIR = obj
 
 SOURCES = $(wildcard $(SRCDIR)/*.c)
 OBJECTS = $(SOURCES:$(SRCDIR)/%.c=$(OBJDIR)/%.o)
+DEPS = $(OBJECTS:.o=.d)
 
 .PHONY: all clean
 
@@ -24,3 +25,5 @@ $(OBJDIR):
 
 clean:
 	rm -rf $(OBJDIR) $(TARGET)
+
+-include $(DEPS)
