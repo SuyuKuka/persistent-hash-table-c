@@ -81,8 +81,8 @@ void print_bloc(const char *nom_table) {
     }
 
     uint32_t b = get_b(fd);
-    size_t taille = b * sizeof(struct hache_entree);
-    struct hache_entree *table = mmap(NULL, taille, PROT_READ, MAP_SHARED, fd, 0);
+    size_t taille_table = b * sizeof(struct hache_entree);
+    struct hache_entree *table = mmap(NULL, taille_table, PROT_READ, MAP_SHARED, fd, 0);
     if (table == MAP_FAILED) {
         perror("[ERREUR] mmap (print_bloc)");
         close(fd);
@@ -92,13 +92,13 @@ void print_bloc(const char *nom_table) {
     printf("\n--------------------------- CONTENU DE LA TABLE ---------------------------\n");
     for (uint32_t i = 0; i < b; i++) {
         if (table[i].longueur == BLOC_LIBRE) {
-            printf("[INFO] %u |  Vide  | Taille: %u | Premier: %u | Suivant: %u\n", i, table[i].longueur, table[i].premier, table[i].suivant);
+            printf("[DEBUG] %u |  Vide  | Taille: %u | Premier: %u | Suivant: %u\n", i, table[i].longueur, table[i].premier, table[i].suivant);
         } else {
-            printf("[INFO] %u | Occupe | Taille: %4u | Premier: %u | Suivant: %u\n", i, table[i].longueur, table[i].premier, table[i].suivant);
+            printf("[DEBUG] %u | Occupe | Taille: %4u | Premier: %u | Suivant: %u\n", i, table[i].longueur, table[i].premier, table[i].suivant);
         }
     }
     printf("----------------------------------------------------------------------------\n");
 
-    munmap(table, taille);
+    munmap(table, taille_table);
     close(fd);
 }
