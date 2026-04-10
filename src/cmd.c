@@ -1,8 +1,11 @@
 #include "cmd.h"
 
 void make_cmd(const char *nom_table, uint32_t b) {
-    (void)nom_table;
-    (void)b;
+    if (b == 0) {
+        fprintf(stderr, "make: b ne peut pas etre egal a 0.\n");
+        exit(EXIT_FAILURE);
+    }
+    
     int fd;
     size_t taille = b * sizeof(struct hache_entree);
 
