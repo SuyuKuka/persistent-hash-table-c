@@ -5,20 +5,20 @@ uint32_t get_b(int fd) {
     uint32_t b;
 
     if (fstat(fd, &st) == -1) {
-        perror("fstat (get_b)");
+        perror("[ERREUR] fstat (get_b)");
         close(fd);
         exit(EXIT_FAILURE);
     }
 
     if (st.st_size % sizeof(struct hache_entree) != 0) {
-        fprintf(stderr, "get_b: la table est corrompue.\n");
+        fprintf(stderr, "[ERREUR] get_b: la table est corrompue.\n");
         close(fd);
         exit(EXIT_FAILURE);
     }
 
     b = st.st_size / sizeof(struct hache_entree);
     if (b == 0) {
-        fprintf(stderr, "get_b: la table est vide.\n");
+        fprintf(stderr, "[ERREUR] get_b: la table est vide.\n");
         close(fd);
         exit(EXIT_FAILURE);
     }
@@ -28,7 +28,7 @@ uint32_t get_b(int fd) {
 
 void make_cmd(const char *nom_table, uint32_t b) {
     if (b == 0) {
-        fprintf(stderr, "make: b ne peut pas etre egal a 0.\n");
+        fprintf(stderr, "[ERREUR] make: b ne peut pas etre egal a 0.\n");
         exit(EXIT_FAILURE);
     }
 
@@ -37,19 +37,19 @@ void make_cmd(const char *nom_table, uint32_t b) {
 
     fd = open(nom_table, O_CREAT | O_RDWR | O_TRUNC, 0666);
     if (fd < 0) {
-        perror("open (make)");
+        perror("[ERREUR] open (make)");
         exit(EXIT_FAILURE);
     }
     
     if (ftruncate(fd, taille) < 0) {
-        perror("ftruncate (make)");
+        perror("[ERREUR] ftruncate (make)");
         close(fd);
         exit(EXIT_FAILURE);
     }
 
     struct hache_entree *table = mmap(NULL, taille, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
     if (table == MAP_FAILED) {
-        perror("mmap (make)");
+        perror("[ERREUR] mmap (make)");
         close(fd);
         exit(EXIT_FAILURE);
     }
@@ -61,7 +61,7 @@ void make_cmd(const char *nom_table, uint32_t b) {
     }
 
     if (munmap(table, taille) == -1) {
-        perror("munmap (make)");
+        perror("[ERREUR] munmap (make)");
         close(fd);
         exit(EXIT_FAILURE);
     }
@@ -79,7 +79,7 @@ void free_cmd(const char *nom_table) {
 
     fd = open(nom_table, O_RDONLY);
     if (fd < 0) {
-        perror("open (free)");
+        perror("[ERREUR] open (free)");
         exit(EXIT_FAILURE);
     }
 
@@ -87,7 +87,7 @@ void free_cmd(const char *nom_table) {
     taille = b * sizeof(struct hache_entree);
     struct hache_entree *table = mmap(NULL, taille, PROT_READ, MAP_SHARED, fd, 0);
     if (table == MAP_FAILED) {
-        perror("mmap (free)");
+        perror("[ERREUR] mmap (free)");
         close(fd);
         exit(EXIT_FAILURE);
     }
@@ -98,12 +98,12 @@ void free_cmd(const char *nom_table) {
         }
     }
 
-    printf("Blocs libres: %u\n", bloc_libre);
-    printf("Blocs occupes: %u\n", b - bloc_libre);
-    printf("Taux de remplissage: %.2f%% \n", ((double)(b - bloc_libre) / (double)b) * 100.0);
+    printf("[INFO] Blocs libres: %u\n", bloc_libre);
+    printf("[INFO] Blocs occupes: %u\n", b - bloc_libre);
+    printf("[INFO] Taux de remplissage: %.2f%% \n", ((double)(b - bloc_libre) / (double)b) * 100.0);
 
     if (munmap(table, taille) == -1) {
-        perror("munmap (free)");
+        perror("[ERREUR] munmap (free)");
         close(fd);
         exit(EXIT_FAILURE);
     }

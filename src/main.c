@@ -5,7 +5,7 @@
 
 int main(int argc, char* argv[]) {
     if (argc < 4) {
-        fprintf(stderr, "Utilisation: %s commande table slowns [autres parametres]\n", argv[0]);
+        fprintf(stderr, "[ERREUR] Utilisation: %s commande table slowns [autres parametres]\n", argv[0]);
         return EXIT_FAILURE;
     }
 
@@ -14,14 +14,14 @@ int main(int argc, char* argv[]) {
 
     if (strcmp(cmd, "make") == 0) {
         if (argc != 5) {
-            fprintf(stderr, "Utilisation: %s make table slowns b\n", argv[0]);
+            fprintf(stderr, "[ERREUR] Utilisation: %s make table slowns b\n", argv[0]);
             return EXIT_FAILURE;
         }
 
         make_cmd(table, atoi(argv[4]));
     } else if (strcmp(cmd, "free") == 0) {
         if (argc != 4) {
-            fprintf(stderr, "Utilisation: %s free table slowns\n", argv[0]);
+            fprintf(stderr, "[ERREUR] Utilisation: %s free table slowns\n", argv[0]);
             return EXIT_FAILURE;
         }
 
@@ -43,7 +43,7 @@ int main(int argc, char* argv[]) {
     } else if (strcmp(cmd, "shrink") == 0) {
         shrink_cmd();
     } else {
-        fprintf(stderr, "Commande %s inconnue.\n", cmd);
+        fprintf(stderr, "[ERREUR] Commande %s inconnue.\n", cmd);
         return EXIT_FAILURE;
     }
 
