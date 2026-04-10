@@ -32,12 +32,12 @@ int main(int argc, char *argv[]) {
             return EXIT_FAILURE;
         }
 
-        size_t taille = 0;
+        size_t taille_chaine = 0;
         for (int i = 4; i < argc; i++) {
-            taille += strlen(argv[i]) + 1;
+            taille_chaine += strlen(argv[i]) + 1;
         }
 
-        char *chaine = malloc(taille);
+        char *chaine = malloc(taille_chaine);
         if (chaine == NULL) {
             perror("[ERREUR] malloc");
             return EXIT_FAILURE;
@@ -76,6 +76,5 @@ int main(int argc, char *argv[]) {
     }
 
     print_bloc(nom_table);
-
     return EXIT_SUCCESS;
 }
