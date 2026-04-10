@@ -14,7 +14,7 @@ uint32_t get_b(int fd);
 
 void make_cmd(const char *nom_table, uint32_t b);
 
-void free_cmd();
+void free_cmd(const char *nom_table);
 
 void insertstring_cmd();
 
