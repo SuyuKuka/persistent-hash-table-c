@@ -14,13 +14,18 @@ int main(int argc, char* argv[]) {
 
     if (strcmp(cmd, "make") == 0) {
         if (argc != 5) {
-            fprintf(stderr, "Utilisation: %s make table 0 b\n", argv[0]);
+            fprintf(stderr, "Utilisation: %s make table slowns b\n", argv[0]);
             return EXIT_FAILURE;
         }
 
         make_cmd(table, atoi(argv[4]));
     } else if (strcmp(cmd, "free") == 0) {
-        free_cmd();
+        if (argc != 4) {
+            fprintf(stderr, "Utilisation: %s free table slowns\n", argv[0]);
+            return EXIT_FAILURE;
+        }
+
+        free_cmd(table);
     } else if (strcmp(cmd, "insertstring") == 0) {
         insertstring_cmd();
     } else if (strcmp(cmd, "insertfile") == 0) {
