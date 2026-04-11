@@ -9,6 +9,17 @@
 #include <sys/mman.h>
 #include "bloc.h"
 
+struct table_entree {
+    int fd;
+    struct hache_entree *table;
+    uint32_t b;
+    size_t taille_table;
+};
+
+int open_table(const char *nom_table, struct table_entree *t, const int flags_open, const int prot_mmap);
+
+void close_table(struct table_entree *t);
+
 void make_cmd(const char *nom_table, uint32_t b);
 
 void free_cmd(const char *nom_table);
