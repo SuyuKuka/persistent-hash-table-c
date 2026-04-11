@@ -26,7 +26,7 @@ void free_cmd(const char *nom_table);
 
 int insertstring_cmd(const char *nom_table, const char *chaine);
 
-void insertfile_cmd();
+void insertfile_cmd(const char *nom_table, const char *nom_fichier);
 
 void lookup_cmd();
 
