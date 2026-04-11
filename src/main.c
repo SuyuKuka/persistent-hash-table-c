@@ -14,7 +14,6 @@ int handle_make(int argc, char *argv[]) {
 }
 
 int handle_free(int argc, char *argv[]) {
-    handle_free(argc, argv);
     if (argc != 4) {
         fprintf(stderr, "[ERREUR] Utilisation: %s free table slowns\n", argv[0]);
         return EXIT_FAILURE;
