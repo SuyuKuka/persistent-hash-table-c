@@ -7,7 +7,7 @@
 
 #define BLOC_LIBRE 0xFFFFFFFFUL
 #define BLOC_ERREUR 0xFFFFFFFFUL
-#define DERNIER_BLOC 0xFFFFFFFFUL
+#define FIN_CHAINE 0xFFFFFFFFUL
 
 struct hache_entree {
     uint32_t premier; // numero du premier bloc de la liste chainée
