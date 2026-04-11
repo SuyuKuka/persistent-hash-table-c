@@ -139,8 +139,17 @@ int insertstring_cmd(const char *nom_table, const char *chaine) {
     return 0;
 }
 
-void insertfile_cmd() {
+void insertfile_cmd(const char *nom_table, const char *nom_fichier) {
+    struct table_entree t;
+    if (open_table(nom_table, &t, O_RDWR, PROT_READ | PROT_WRITE) < 0) {
+        close_table(&t);
+        exit(EXIT_FAILURE);
+    }
 
+    // struct stat st;
+    // fstat(nom_fichier, &st);
+
+    close_table(&t);
 }
 
 void lookup_cmd() {
