@@ -27,29 +27,29 @@ void close_table(struct table_entree *t) {
 long insert_nom_fichier(struct table_entree *t, const char *donnee, const int premier_bloc) {
     uint32_t dernier_bloc = premier_bloc;
 
-    while (t->table[premier_bloc].suivant != FIN_CHAINE) {
-        t->table[premier_bloc].longueur += 4;
-        dernier_bloc = t->table[premier_bloc].suivant;
+    while (t->table[dernier_bloc].suivant != FIN_CHAINE) {
+        t->table[dernier_bloc].longueur += sizeof(uint32_t);
+        dernier_bloc = t->table[dernier_bloc].suivant;
     }
 
     uint32_t longueur = t->table[dernier_bloc].longueur;
-    if (longueur + 4 <= ESPACE_MAX) {
+    if (longueur + sizeof(uint32_t) <= ESPACE_MAX) {
         memcpy(t->table[dernier_bloc].obj + longueur, donnee, sizeof(uint32_t));
         t->table[dernier_bloc].longueur += sizeof(uint32_t);
         return dernier_bloc;
     }
 
-    t->table[dernier_bloc].longueur += 4;
-    int nouveau_bloc = bloc_libre(t->table, t->b, dernier_bloc);
-    if (nouveau_bloc == -2) {
+    t->table[dernier_bloc].longueur += sizeof(uint32_t);
+    uint32_t nouveau_bloc = bloc_libre(t->table, t->b, dernier_bloc);
+    if (nouveau_bloc == BLOC_ERREUR) {
         fprintf(stderr, "[ERREUR] insert_nom_fichier: la table n'a pas assez de place pour inserer un nouveau fichier.\n");
         uint32_t bloc_annuler = premier_bloc;
         while (t->table[bloc_annuler].suivant != FIN_CHAINE) {
-            t->table[bloc_annuler].longueur -= 4;
+            t->table[bloc_annuler].longueur -= sizeof(uint32_t);
             bloc_annuler = t->table[bloc_annuler].suivant;
         }
 
-        t->table[dernier_bloc].longueur -= 4;
+        t->table[dernier_bloc].longueur -= 2 * sizeof(uint32_t);
         return -1;
     }
     
@@ -66,17 +66,12 @@ long insert_nom_fichier(struct table_entree *t, const char *donnee, const int pr
 
 long handle_data(const char *nom_table, const char *cle, size_t taille_cle, struct table_entree *t, const char *donnee, size_t taille_donnee, uint32_t type_donnee) {
     int bloc = recherche_bloc(nom_table, t->table, cle, taille_cle, type_donnee, t->b);
-    if (bloc == -2) {
-        fprintf(stderr, "[ERREUR] handle_data: la table est remplie.\n");
-        return -1;
-    }
-
     if (type_donnee == TYPE_NOM_FICHIER) {
-        if (bloc != -1) {
+        if (bloc >= 0) {
             return insert_nom_fichier(t, donnee, bloc);
         }
     } else {
-        if (bloc != -1) {
+        if (bloc >= 0) {
             fprintf(stderr, "[ALERTE] handle_data: la donnee existe deja dans la table.\n");
             return -1;
         }
@@ -264,6 +259,14 @@ void insertfile_cmd(const char *nom_table, const char *nom_fichier) {
         uint32_t i = (uint32_t)index;
         size_t taille_nom = strlen(nom_fichier) + 1;
         char *nom_donnee = malloc(taille_nom + sizeof(uint32_t));
+        if (nom_donnee == NULL) {
+            perror("[ERREUR] malloc (insertfile)");
+            free(donnee);
+            munmap(contenu, st.st_size);
+            close(fd);
+            close_table(&t);
+            exit(EXIT_FAILURE);
+        }
 
         memcpy(nom_donnee, nom_fichier, taille_nom);
         memcpy(nom_donnee + taille_nom, &i, sizeof(uint32_t));
@@ -288,7 +291,9 @@ void deletehash_cmd() {
 
 int delete_cmd(const char *nom_table, const char *chaine) {
     struct table_entree t;
-    open_table(nom_table, &t, O_RDWR, PROT_READ | PROT_WRITE);
+    if (open_table(nom_table, &t, O_RDWR, PROT_READ | PROT_WRITE) < 0) {
+        exit(EXIT_FAILURE);
+    }
 
     size_t taille_chaine = strlen(chaine);
     int bloc = -1;

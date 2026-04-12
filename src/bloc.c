@@ -12,12 +12,35 @@ uint32_t bloc_libre(struct hache_entree *table, uint32_t b, uint32_t indice) {
     return i;
 }
 
+int compare_bloc(struct hache_entree *table, uint32_t bloc_depart, const char *donnee, size_t taille_donnee) {
+    uint32_t actuel = bloc_depart;
+    size_t offset = 0;
+
+    while (taille_donnee > 0) {
+        if (actuel == FIN_CHAINE) {
+            return 0;
+        }
+
+        size_t donnee_sub = (taille_donnee > ESPACE_MAX) ? ESPACE_MAX : taille_donnee;
+        if (memcmp(table[actuel].obj, donnee + offset, donnee_sub) != 0) {
+            return 0;
+        }
+
+        offset += donnee_sub;
+        taille_donnee -= donnee_sub;
+        actuel = table[actuel].suivant;
+    }
+
+    return 1;
+}
+
 int recherche_bloc(const char *nom_table, struct hache_entree *table, const void *C, size_t taille_C, uint32_t type_donnee, uint32_t b) {
     uint32_t index = h(nom_table, C, taille_C, b);
     uint32_t i = index;
     do {
         if (table[i].longueur == BLOC_LIBRE) {
-            return -1; 
+            i = (i + 1) % b;
+            continue;
         }
 
         if (table[i].type == type_donnee) {
@@ -26,7 +49,7 @@ int recherche_bloc(const char *nom_table, struct hache_entree *table, const void
                     return i;
                 }
             } else {
-                if (table[i].longueur == taille_C && memcmp(table[i].obj, C, taille_C) == 0) {
+                if (table[i].longueur == taille_C && compare_bloc(table, i, C, taille_C) == 0) {
                     return i;
                 }
             }
@@ -35,7 +58,7 @@ int recherche_bloc(const char *nom_table, struct hache_entree *table, const void
         i = (i + 1) % b;
     } while (i != index);
 
-    return -2;
+    return -1;
 }
 
 int bloc_suffisant(struct hache_entree *table, size_t taille_chaine, const uint32_t b) {

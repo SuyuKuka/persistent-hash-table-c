@@ -32,6 +32,8 @@ struct hache_entree {
 
 uint32_t bloc_libre(struct hache_entree *table, uint32_t b, uint32_t indice);
 
+int compare_bloc(struct hache_entree *table, uint32_t bloc_depart, const char *donnee, size_t taille_donnee);
+
 int recherche_bloc(const char *nom_table, struct hache_entree *table, const void *C, size_t taille_C, uint32_t type_donnee, uint32_t b);
 
 int bloc_suffisant(struct hache_entree *table, size_t taille_chaine, const uint32_t b);
