@@ -2,7 +2,7 @@
 
 uint32_t bloc_libre(struct hache_entree *table, uint32_t b, uint32_t indice) {
     if (b == 0) {
-        fprintf(stderr, "bloc_libre: b ne peut pas etre égal a 0.\n");
+        fprintf(stderr, "[ERREUR] bloc_libre: b ne peut pas etre égal a 0.\n");
         exit(EXIT_FAILURE);
     }
 
