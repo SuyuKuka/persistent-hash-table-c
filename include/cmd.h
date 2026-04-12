@@ -38,7 +38,7 @@ void lookup_cmd();
 
 void deletehash_cmd();
 
-void delete_cmd();
+int delete_cmd(const char *nom_table, const char *chaine);
 
 void check_cmd();
 

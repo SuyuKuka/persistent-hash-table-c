@@ -80,10 +80,38 @@ int handle_deletehash(int argc, char *argv[]) {
     return EXIT_SUCCESS;
 }
 
+// TODO: adapter pour fichier 
 int handle_delete(int argc, char *argv[]) {
-    (void)argc;
-    (void)argv;
-    delete_cmd();
+    if (argc < 5) {
+        fprintf(stderr, "[ERREUR] Utilisation: %s delete table slowns chaine\n", argv[0]);
+        return EXIT_FAILURE;
+    }
+
+    size_t taille_chaine = 0;
+    for (int i = 4; i < argc; i++) {
+        taille_chaine += strlen(argv[i]) + 1;
+    }
+
+    char *chaine = malloc(taille_chaine);
+    if (chaine == NULL) {
+        perror("[ERREUR] malloc");
+        return EXIT_FAILURE;
+    }
+
+    chaine[0] = '\0';
+    for (int i = 4; i < argc; i++) {
+        strcat(chaine, argv[i]);
+        if (i < argc - 1) {
+            strcat(chaine, " ");
+        }
+    }
+
+    if (delete_cmd(argv[2], chaine) == -1) {
+        free(chaine);
+        return EXIT_FAILURE;
+    }
+
+    free(chaine);
     return EXIT_SUCCESS;
 }
 
