@@ -150,8 +150,101 @@ void deletehash_cmd() {
     
 }
 
-void delete_cmd() {
-    
+int delete_cmd(const char *nom_table, const char *chaine) {
+    int fd = open(nom_table, O_RDWR);
+    if (fd < 0) {
+        perror("[ERREUR] open (delete)");
+        return -1;
+    }
+
+    uint32_t b = get_b(fd);
+    size_t taille_table = b * sizeof(struct hache_entree);
+
+    struct hache_entree *table = mmap(NULL, taille_table, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+    if (table == MAP_FAILED) {
+        perror("[ERREUR] mmap (delete)");
+        close(fd);
+        return -1;
+    }
+
+    size_t taille_chaine = strlen(chaine);
+    int bloc = -1;
+
+    for (uint32_t i = 0; i < b; i++) {
+        if (table[i].longueur == BLOC_LIBRE) {
+            continue;
+        }
+
+        if (table[i].longueur != taille_chaine) {
+            continue;
+        }
+
+        size_t offset = 0;
+        uint32_t courant = i;
+        int correspond = 1;
+
+        while (1) {
+            size_t reste = taille_chaine - offset;
+            size_t a_comparer;
+
+            if (reste > ESPACE_MAX) {
+                a_comparer = ESPACE_MAX;
+            } else {
+                a_comparer = reste;
+            }
+
+            if (memcmp(table[courant].obj, chaine + offset, a_comparer) != 0) {
+                correspond = 0;
+                break;
+            }
+
+            offset += a_comparer;
+
+            if (offset >= taille_chaine) {
+                break;
+            }
+
+            if (table[courant].suivant == FIN_CHAINE) {
+                correspond = 0;
+                break;
+            }
+
+            courant = table[courant].suivant;
+        }
+
+        if (correspond) {
+            bloc = i;
+            break;
+        }
+    }
+
+    if (bloc < 0) {
+        fprintf(stderr, "[ALERTE] delete: la chaine est introuvable.\n");
+        munmap(table, taille_table);
+        close(fd);
+        return -1;
+    }
+
+    uint32_t courant = (uint32_t)bloc;
+
+    while (1) {
+        uint32_t suivant = table[courant].suivant;
+
+        table[courant].premier = courant;
+        table[courant].suivant = FIN_CHAINE;
+        table[courant].longueur = BLOC_LIBRE;
+        memset(table[courant].obj, 0, ESPACE_MAX);
+
+        if (suivant == FIN_CHAINE) {
+            break;
+        }
+
+        courant = suivant;
+    }
+
+    munmap(table, taille_table);
+    close(fd);
+    return 0;
 }
 
 void check_cmd() {
