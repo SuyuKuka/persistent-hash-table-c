@@ -50,7 +50,6 @@ long insert_nom_fichier(struct table_entree *t, const char *donnee, const int pr
         }
 
         t->table[dernier_bloc].longueur -= 4;
-        // TODO: supprimer le fichier qu'on a insérer auparavant avec deletehash
         return -1;
     }
     
@@ -81,11 +80,6 @@ long handle_data(const char *nom_table, const char *cle, size_t taille_cle, stru
             fprintf(stderr, "[ALERTE] handle_data: la donnee existe deja dans la table.\n");
             return -1;
         }
-    }
-
-    if (bloc_suffisant(t->table, taille_donnee, t->b) < 0) {
-        fprintf(stderr, "[ERREUR] handle_data: la table n'a pas assez de blocs pour inserer toutes les donnees.\n");
-        return -1;
     }
 
     return insertdata(nom_table, cle, taille_cle, t, donnee, taille_donnee, type_donnee);
@@ -195,6 +189,11 @@ int insertstring_cmd(const char *nom_table, const char *chaine) {
     }
 
     size_t taille_chaine = strlen(chaine);
+    if (bloc_suffisant(t.table, taille_chaine, t.b) < 0) {
+        fprintf(stderr, "[ERREUR] insertstring: la table n'a pas assez de blocs pour inserer toutes les donnees.\n");
+        return -1;
+    }
+
     if (handle_data(nom_table, chaine, taille_chaine, &t, chaine, taille_chaine, TYPE_CHAINE) < 0) {
         close_table(&t);
         return EXIT_FAILURE;
@@ -248,6 +247,17 @@ void insertfile_cmd(const char *nom_table, const char *nom_fichier) {
 
     memcpy(donnee, metadonnee, taille_meta);
     memcpy(donnee + taille_meta, contenu, st.st_size);
+
+    uint32_t bloc_necessaire = bloc_suffisant_fichier(nom_table, t.table, nom_fichier, t.b);
+    size_t taille_necessaire = taille_totale + (bloc_necessaire * ESPACE_MAX);
+    if (bloc_suffisant(t.table, taille_necessaire, t.b) < 0) {
+        fprintf(stderr, "[ERREUR] insertfile: la table n'a pas assez de blocs pour inserer le fichier et/ou le nom.\n");
+        free(donnee);
+        munmap(contenu, st.st_size);
+        close(fd);
+        close_table(&t);
+        exit(EXIT_FAILURE);
+    }
 
     long index = handle_data(nom_table, donnee, taille_totale, &t, donnee, taille_totale, TYPE_FICHIER);
     if (index >= 0) {

@@ -38,7 +38,7 @@ int recherche_bloc(const char *nom_table, struct hache_entree *table, const void
     return -2;
 }
 
-int bloc_suffisant(struct hache_entree *table, size_t taille_chaine, uint32_t b) {
+int bloc_suffisant(struct hache_entree *table, size_t taille_chaine, const uint32_t b) {
     uint32_t dispo = 0;
     for (uint32_t i = 0; i < b; i++) {
         if (table[i].longueur == BLOC_LIBRE) dispo++;
@@ -50,6 +50,34 @@ int bloc_suffisant(struct hache_entree *table, size_t taille_chaine, uint32_t b)
     }
 
     return 0;
+}
+
+int bloc_suffisant_fichier(const char *nom_table, struct hache_entree *table, const char *nom_fichier, uint32_t b) {
+    uint32_t index = h(nom_table, nom_fichier, strlen(nom_fichier), b);
+    uint32_t i = index;
+
+    do {
+        if (table[i].longueur == BLOC_LIBRE) {
+            return 1; 
+        }
+
+        if (table[i].type == TYPE_NOM_FICHIER && strcmp(table[i].obj, nom_fichier) == 0) {
+            uint32_t actuel = i;
+            while (table[actuel].suivant != FIN_CHAINE) {
+                actuel = table[actuel].suivant;
+            }
+
+            if (table[actuel].longueur + 4 <= ESPACE_MAX) {
+                return 0;
+            } else {
+                return 1;
+            }
+        }
+
+        i = (i + 1) % b;
+    } while (i != index);
+
+    return 1;
 }
 
 uint32_t get_b(int fd) {
