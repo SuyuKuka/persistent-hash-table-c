@@ -287,31 +287,18 @@ void deletehash_cmd() {
 }
 
 int delete_cmd(const char *nom_table, const char *chaine) {
-    int fd = open(nom_table, O_RDWR);
-    if (fd < 0) {
-        perror("[ERREUR] open (delete)");
-        return -1;
-    }
-
-    uint32_t b = get_b(fd);
-    size_t taille_table = b * sizeof(struct hache_entree);
-
-    struct hache_entree *table = mmap(NULL, taille_table, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
-    if (table == MAP_FAILED) {
-        perror("[ERREUR] mmap (delete)");
-        close(fd);
-        return -1;
-    }
+    struct table_entree t;
+    open_table(nom_table, &t, O_RDWR, PROT_READ | PROT_WRITE);
 
     size_t taille_chaine = strlen(chaine);
     int bloc = -1;
 
-    for (uint32_t i = 0; i < b; i++) {
-        if (table[i].longueur == BLOC_LIBRE) {
+    for (uint32_t i = 0; i < t.b; i++) {
+        if (t.table[i].longueur == BLOC_LIBRE) {
             continue;
         }
 
-        if (table[i].longueur != taille_chaine) {
+        if (t.table[i].longueur != taille_chaine) {
             continue;
         }
 
@@ -329,7 +316,7 @@ int delete_cmd(const char *nom_table, const char *chaine) {
                 a_comparer = reste;
             }
 
-            if (memcmp(table[courant].obj, chaine + offset, a_comparer) != 0) {
+            if (memcmp(t.table[courant].obj, chaine + offset, a_comparer) != 0) {
                 correspond = 0;
                 break;
             }
@@ -340,12 +327,12 @@ int delete_cmd(const char *nom_table, const char *chaine) {
                 break;
             }
 
-            if (table[courant].suivant == FIN_CHAINE) {
+            if (t.table[courant].suivant == FIN_CHAINE) {
                 correspond = 0;
                 break;
             }
 
-            courant = table[courant].suivant;
+            courant = t.table[courant].suivant;
         }
 
         if (correspond) {
@@ -356,20 +343,19 @@ int delete_cmd(const char *nom_table, const char *chaine) {
 
     if (bloc < 0) {
         fprintf(stderr, "[ALERTE] delete: la chaine est introuvable.\n");
-        munmap(table, taille_table);
-        close(fd);
+        close_table(&t);
         return -1;
     }
 
     uint32_t courant = (uint32_t)bloc;
 
     while (1) {
-        uint32_t suivant = table[courant].suivant;
+        uint32_t suivant = t.table[courant].suivant;
 
-        table[courant].premier = courant;
-        table[courant].suivant = FIN_CHAINE;
-        table[courant].longueur = BLOC_LIBRE;
-        memset(table[courant].obj, 0, ESPACE_MAX);
+        t.table[courant].premier = courant;
+        t.table[courant].suivant = FIN_CHAINE;
+        t.table[courant].longueur = BLOC_LIBRE;
+        memset(t.table[courant].obj, 0, ESPACE_MAX);
 
         if (suivant == FIN_CHAINE) {
             break;
@@ -378,8 +364,7 @@ int delete_cmd(const char *nom_table, const char *chaine) {
         courant = suivant;
     }
 
-    munmap(table, taille_table);
-    close(fd);
+    close_table(&t);
     return 0;
 }
 
