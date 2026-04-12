@@ -63,8 +63,37 @@ int main(int argc, char *argv[]) {
     } else if (strcmp(cmd, "deletehash") == 0) {
         deletehash_cmd();
     } else if (strcmp(cmd, "delete") == 0) {
-        delete_cmd();
-    } else if (strcmp(cmd, "check") == 0) {
+        if (argc < 5) {
+            fprintf(stderr, "[ERREUR] Utilisation: %s delete table slowns chaine\n", argv[0]);
+            return EXIT_FAILURE;
+        }
+
+        size_t taille_chaine = 0;
+        for (int i = 4; i < argc; i++) {
+            taille_chaine += strlen(argv[i]) + 1;
+        }
+
+        char *chaine = malloc(taille_chaine);
+        if (chaine == NULL) {
+            perror("[ERREUR] malloc");
+            return EXIT_FAILURE;
+        }
+
+        chaine[0] = '\0';
+        for (int i = 4; i < argc; i++) {
+            strcat(chaine, argv[i]);
+            if (i < argc - 1) {
+                strcat(chaine, " ");
+            }
+        }
+
+        if (delete_cmd(nom_table, chaine) == -1) {
+            free(chaine);
+            return EXIT_FAILURE;
+        }
+
+        free(chaine);
+    }else if (strcmp(cmd, "check") == 0) {
         check_cmd();
     } else if (strcmp(cmd, "extend") == 0) {
         extend_cmd();
