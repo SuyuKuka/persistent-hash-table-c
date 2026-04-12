@@ -1,11 +1,6 @@
 #include "bloc.h"
 
 uint32_t bloc_libre(struct hache_entree *table, uint32_t b, uint32_t indice) {
-    if (b == 0) {
-        fprintf(stderr, "[ERREUR] bloc_libre: b ne peut pas etre égal a 0.\n");
-        exit(EXIT_FAILURE);
-    }
-
     uint32_t i = indice;
     while (table[i].longueur != BLOC_LIBRE) {
         i = (i + 1) % b;
@@ -17,7 +12,7 @@ uint32_t bloc_libre(struct hache_entree *table, uint32_t b, uint32_t indice) {
     return i;
 }
 
-int recherche_bloc(const char *nom_table, struct hache_entree *table, const void *C, size_t taille_C, uint32_t b) {
+int recherche_bloc(const char *nom_table, struct hache_entree *table, const void *C, size_t taille_C, uint32_t type_donnee, uint32_t b) {
     uint32_t index = h(nom_table, C, taille_C, b);
     uint32_t i = index;
     do {
@@ -25,8 +20,16 @@ int recherche_bloc(const char *nom_table, struct hache_entree *table, const void
             return -1; 
         }
 
-        if (table[i].longueur == taille_C && memcmp(table[i].obj, C, taille_C) == 0) {
-            return i; 
+        if (table[i].type == type_donnee) {
+            if (type_donnee == TYPE_NOM_FICHIER) {
+                if (strcmp(table[i].obj, C) == 0) {
+                    return i;
+                }
+            } else {
+                if (table[i].longueur == taille_C && memcmp(table[i].obj, C, taille_C) == 0) {
+                    return i;
+                }
+            }
         }
 
         i = (i + 1) % b;
@@ -92,7 +95,7 @@ void print_bloc(const char *nom_table) {
     printf("\n--------------------------- CONTENU DE LA TABLE ---------------------------\n");
     for (uint32_t i = 0; i < b; i++) {
         if (table[i].longueur == BLOC_LIBRE) {
-            printf("[DEBUG] %u |  Vide  | Taille: %u | Premier: %u | Suivant: %u\n", i, table[i].longueur, table[i].premier, table[i].suivant);
+            printf("[DEBUG] %u | Vide\n", i);
         } else {
             printf("[DEBUG] %u | Occupe | Taille: %4u | Premier: %u | Suivant: %u\n", i, table[i].longueur, table[i].premier, table[i].suivant);
         }
