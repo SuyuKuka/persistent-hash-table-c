@@ -6,6 +6,7 @@
 #include <stdint.h>
 #include <string.h>
 #include <openssl/sha.h>
+#include "bloc.h"
 
 /**
  * @brief Calcule le hashcode d'un objet binaire de n octets.

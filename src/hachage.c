@@ -3,7 +3,7 @@
 uint32_t checksum32b(const void *C, size_t n, uint32_t b) {
     if (b == 0) {
         fprintf(stderr, "[ERREUR] checksomme32b: b ne peut pas etre égal a 0.\n");
-        exit(EXIT_FAILURE);
+        return BLOC_ERREUR;
     }
 
     uint32_t somme = 0;
@@ -38,7 +38,7 @@ uint32_t checksum32b(const void *C, size_t n, uint32_t b) {
 uint32_t sha1b(const void *C, size_t n, uint32_t b) {
     if (b == 0) {
         fprintf(stderr, "[ERREUR] sha1b: b ne peut pas etre égal a 0.\n");
-        exit(EXIT_FAILURE);
+        return BLOC_ERREUR;
     }
 
     uint32_t indice = 0;
@@ -57,6 +57,6 @@ uint32_t h(const char* nom_table, const void *C, size_t n, uint32_t b) {
         return sha1b(C, n, b);
     } else {
         fprintf(stderr, "[ERREUR] h: l'extension de la table %s n'est pas pris en compte.\n", nom_table);
-        exit(EXIT_FAILURE);
+        return BLOC_ERREUR;
     }
 }
