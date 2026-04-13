@@ -26,26 +26,26 @@ long handle_data(const char *nom_table, const char *cle, size_t taille_cle, stru
 
 long insertdata(const char *nom_table, const char *cle, size_t taille_cle, struct table_entree *t, const char *donnee, size_t taille_donnee, const uint32_t type_donnee);
 
-void make_cmd(const char *nom_table, const uint32_t b);
+int make_cmd(const char *nom_table, const uint32_t b);
 
-void free_cmd(const char *nom_table);
+int free_cmd(const char *nom_table);
 
 int insertstring_cmd(const char *nom_table, const char *chaine);
 
-void insertfile_cmd(const char *nom_table, const char *nom_fichier);
+int insertfile_cmd(const char *nom_table, const char *nom_fichier);
 
-void lookup_cmd();
+int lookup_cmd();
 
-void deletehash_cmd();
+int deletehash_cmd();
 
 int delete_cmd(const char *nom_table, const char *chaine);
 
-void check_cmd();
+int check_cmd(const char *nom_table);
 
-void extend_cmd();
+int extend_cmd();
 
-void shrink_cmd();
+int shrink_cmd();
 
-void ajust_cmd();
+int ajust_cmd();
 
 #endif

@@ -9,6 +9,7 @@
 #include <sys/stat.h>
 #include <sys/mman.h>
 #include "hachage.h"
+#include "cmd.h"
 
 #define BLOC_LIBRE 0xFFFFFFFFUL
 #define BLOC_ERREUR 0xFFFFFFFFUL
@@ -42,6 +43,6 @@ int bloc_suffisant_fichier(const char *nom_table, struct hache_entree *table, co
 
 uint32_t get_b(int fd);
 
-void print_bloc(const char *nom_table);
+int print_bloc(const char *nom_table);
 
 #endif
