@@ -5,6 +5,7 @@ uint32_t bloc_libre(struct hache_entree *table, uint32_t b, uint32_t indice) {
     while (table[i].longueur != BLOC_LIBRE) {
         i = (i + 1) % b;
         if (i == indice) {
+            fprintf(stderr, "[ERREUR] bloc_libre: la table n'a plus de blocs libres.\n");
             return BLOC_ERREUR;
         }
     }
@@ -69,6 +70,7 @@ int bloc_suffisant(struct hache_entree *table, size_t taille_chaine, const uint3
 
     uint32_t besoin = (taille_chaine + ESPACE_MAX - 1) / ESPACE_MAX;
     if (dispo < besoin) {
+        fprintf(stderr, "[ERREUR] bloc_suffisant: la table n'a pas assez de blocs pour inserer toutes les donnees.\n");
         return -1;
     }
 
@@ -107,45 +109,34 @@ uint32_t get_b(int fd) {
     struct stat st;
     if (fstat(fd, &st) == -1) {
         perror("[ERREUR] fstat (get_b)");
-        close(fd);
-        exit(EXIT_FAILURE);
+        return BLOC_ERREUR;
     }
 
     if (st.st_size % sizeof(struct hache_entree) != 0) {
         fprintf(stderr, "[ERREUR] get_b: la table est corrompue.\n");
         close(fd);
-        exit(EXIT_FAILURE);
+        return BLOC_ERREUR;
     }
 
     uint32_t b = st.st_size / sizeof(struct hache_entree);
     if (b == 0) {
         fprintf(stderr, "[ERREUR] get_b: la table est vide.\n");
         close(fd);
-        exit(EXIT_FAILURE);
+        return BLOC_ERREUR;
     }
 
     return b;
 }
 
-void print_bloc(const char *nom_table) {
-    int fd = open(nom_table, O_RDONLY);
-    if (fd < 0) {
-        perror("[ERREUR] open (dump)");
-        return;
-    }
-
-    uint32_t b = get_b(fd);
-    size_t taille_table = b * sizeof(struct hache_entree);
-    struct hache_entree *table = mmap(NULL, taille_table, PROT_READ, MAP_SHARED, fd, 0);
-    if (table == MAP_FAILED) {
-        perror("[ERREUR] mmap (print_bloc)");
-        close(fd);
-        return;
+int print_bloc(const char *nom_table) {
+    struct table_entree t;
+    if (open_table(nom_table, &t, O_RDONLY, PROT_READ) < 0) {
+        return -1;
     }
 
     printf("\n--------------------------- CONTENU DE LA TABLE ---------------------------\n");
-    for (uint32_t i = 0; i < b; i++) {
-        if (table[i].longueur == BLOC_LIBRE) {
+    for (uint32_t i = 0; i < t.b; i++) {
+        if (t.table[i].longueur == BLOC_LIBRE) {
             printf("[DEBUG] %u | Vide\n", i);
         } else {
             printf("[DEBUG] %u | Occupe | Taille: %4u | Premier: %u | Suivant: %u\n", i, table[i].longueur, table[i].premier, table[i].suivant);
@@ -153,6 +144,6 @@ void print_bloc(const char *nom_table) {
     }
     printf("----------------------------------------------------------------------------\n");
 
-    munmap(table, taille_table);
-    close(fd);
+    close_table(&t);
+    return 0;
 }

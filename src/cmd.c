@@ -42,7 +42,6 @@ long insert_nom_fichier(struct table_entree *t, const char *donnee, const int pr
     t->table[dernier_bloc].longueur += sizeof(uint32_t);
     uint32_t nouveau_bloc = bloc_libre(t->table, t->b, dernier_bloc);
     if (nouveau_bloc == BLOC_ERREUR) {
-        fprintf(stderr, "[ERREUR] insert_nom_fichier: la table n'a pas assez de place pour inserer un nouveau fichier.\n");
         uint32_t bloc_annuler = premier_bloc;
         while (t->table[bloc_annuler].suivant != FIN_CHAINE) {
             t->table[bloc_annuler].longueur -= sizeof(uint32_t);
@@ -95,7 +94,6 @@ long insertdata(const char *nom_table, const char *cle, size_t taille_cle, struc
         
         index_actuel = bloc_libre(t->table, t->b, index);
         if (index_actuel == BLOC_ERREUR) {
-            fprintf(stderr, "[ERREUR] insertdata: la table n'a plus de blocs libres.\n");
             return -1;
         }
 
@@ -117,30 +115,30 @@ long insertdata(const char *nom_table, const char *cle, size_t taille_cle, struc
     return index;
 }
 
-void make_cmd(const char *nom_table, const uint32_t b) {
+int make_cmd(const char *nom_table, const uint32_t b) {
     if (b == 0) {
         fprintf(stderr, "[ERREUR] make: b ne peut pas etre egal a 0.\n");
-        exit(EXIT_FAILURE);
+        return -1;
     }
 
     int fd = open(nom_table, O_CREAT | O_RDWR | O_TRUNC, 0666);
     if (fd < 0) {
         perror("[ERREUR] open (make)");
-        exit(EXIT_FAILURE);
+        return -1;
     }
     
     size_t taille_table = b * sizeof(struct hache_entree);
     if (ftruncate(fd, taille_table) < 0) {
         perror("[ERREUR] ftruncate (make)");
         close(fd);
-        exit(EXIT_FAILURE);
+        return -1;
     }
 
     struct hache_entree *table = mmap(NULL, taille_table, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
     if (table == MAP_FAILED) {
         perror("[ERREUR] mmap (make)");
         close(fd);
-        exit(EXIT_FAILURE);
+        return -1;
     }
 
     for (uint32_t i = 0; i < b; i++) {
@@ -152,13 +150,13 @@ void make_cmd(const char *nom_table, const uint32_t b) {
 
     munmap(table, taille_table);
     close(fd);
+    return 0;
 }
 
-void free_cmd(const char *nom_table) {
+int free_cmd(const char *nom_table) {
     struct table_entree t;
     if (open_table(nom_table, &t, O_RDONLY, PROT_READ) < 0) {
-        close_table(&t);
-        exit(EXIT_FAILURE);
+        return -1;
     }
 
     uint32_t bloc_libre = 0;
@@ -187,6 +185,7 @@ void free_cmd(const char *nom_table) {
     printf("[INFO] Nombre d'objet: %u\n", nb_chaine + nb_fichier);
 
     close_table(&t);
+    return 0;
 }
 
 int insertstring_cmd(const char *nom_table, const char *chaine) {
@@ -197,30 +196,30 @@ int insertstring_cmd(const char *nom_table, const char *chaine) {
 
     size_t taille_chaine = strlen(chaine);
     if (bloc_suffisant(t.table, taille_chaine, t.b) < 0) {
-        fprintf(stderr, "[ERREUR] insertstring: la table n'a pas assez de blocs pour inserer toutes les donnees.\n");
+        close_table(&t);
         return -1;
     }
 
     if (handle_data(nom_table, chaine, taille_chaine, &t, chaine, taille_chaine, TYPE_CHAINE) < 0) {
         close_table(&t);
-        return EXIT_FAILURE;
+        return -1;
     }
 
     close_table(&t);
-    return EXIT_SUCCESS;
+    return 0;
 }
 
 void insertfile_cmd(const char *nom_table, const char *nom_fichier) {
     struct table_entree t;
     if (open_table(nom_table, &t, O_RDWR, PROT_READ | PROT_WRITE) < 0) {
-        exit(EXIT_FAILURE);
+        return -1;
     }
 
     int fd = open(nom_fichier, O_RDONLY);
     if (fd < 0) {
         perror("[ERREUR] open (insertfile)");
         close_table(&t);
-        exit(EXIT_FAILURE);
+        return -1;
     }
 
     struct stat st;
@@ -228,7 +227,7 @@ void insertfile_cmd(const char *nom_table, const char *nom_fichier) {
         perror("[ERREUR] fstat (insertfile)");
         close(fd);
         close_table(&t);
-        exit(EXIT_FAILURE);
+        return -1;
     }
 
     char *contenu = mmap(NULL, st.st_size, PROT_READ, MAP_PRIVATE, fd, 0);
@@ -236,7 +235,7 @@ void insertfile_cmd(const char *nom_table, const char *nom_fichier) {
         perror("[ERREUR] mmap (insertfile)");
         close(fd);
         close_table(&t);
-        exit(EXIT_FAILURE);
+        return -1;
     }
 
     char metadonnee[512];
@@ -249,7 +248,7 @@ void insertfile_cmd(const char *nom_table, const char *nom_fichier) {
         munmap(contenu, st.st_size);
         close(fd);
         close_table(&t);
-        exit(EXIT_FAILURE);
+        return -1;
     }
 
     memcpy(donnee, metadonnee, taille_meta);
@@ -258,12 +257,11 @@ void insertfile_cmd(const char *nom_table, const char *nom_fichier) {
     uint32_t bloc_necessaire = bloc_suffisant_fichier(nom_table, t.table, nom_fichier, t.b);
     size_t taille_necessaire = taille_totale + (bloc_necessaire * ESPACE_MAX);
     if (bloc_suffisant(t.table, taille_necessaire, t.b) < 0) {
-        fprintf(stderr, "[ERREUR] insertfile: la table n'a pas assez de blocs pour inserer le fichier et/ou le nom.\n");
         free(donnee);
         munmap(contenu, st.st_size);
         close(fd);
         close_table(&t);
-        exit(EXIT_FAILURE);
+        return -1;
     }
 
     long index = handle_data(nom_table, donnee, taille_totale, &t, donnee, taille_totale, TYPE_FICHIER);
@@ -277,7 +275,7 @@ void insertfile_cmd(const char *nom_table, const char *nom_fichier) {
             munmap(contenu, st.st_size);
             close(fd);
             close_table(&t);
-            exit(EXIT_FAILURE);
+            return -1;
         }
 
         memcpy(nom_donnee, nom_fichier, taille_nom);
@@ -291,20 +289,23 @@ void insertfile_cmd(const char *nom_table, const char *nom_fichier) {
     munmap(contenu, st.st_size);
     close(fd);
     close_table(&t);
+    return 0;
 }
 
-void lookup_cmd() {
+int lookup_cmd() {
 
+    return 0;
 }
 
-void deletehash_cmd() {
+int deletehash_cmd() {
     
+    return 0;
 }
 
 int delete_cmd(const char *nom_table, const char *chaine) {
     struct table_entree t;
     if (open_table(nom_table, &t, O_RDWR, PROT_READ | PROT_WRITE) < 0) {
-        exit(EXIT_FAILURE);
+        return -1;
     }
 
     size_t taille_chaine = strlen(chaine);
@@ -385,18 +386,22 @@ int delete_cmd(const char *nom_table, const char *chaine) {
     return 0;
 }
 
-void check_cmd() {
+int check_cmd(const char *nom_table) {
     
+    return 0;
 }
 
-void extend_cmd() {
+int extend_cmd() {
     
+    return 0;
 }
 
-void shrink_cmd() {
-    
+int shrink_cmd() {
+
+    return 0;
 }
 
-void ajust_cmd(){
+int ajust_cmd(){
     
+    return 0;
 }
