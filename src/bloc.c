@@ -13,7 +13,7 @@ uint32_t bloc_libre(struct hache_entree *table, uint32_t b, uint32_t indice) {
     return i;
 }
 
-int compare_bloc(struct hache_entree *table, uint32_t bloc_depart, const char *donnee, size_t taille_donnee) {
+uint32_t compare_bloc(struct hache_entree *table, uint32_t bloc_depart, const char *donnee, size_t taille_donnee) {
     uint32_t actuel = bloc_depart;
     size_t offset = 0;
 
@@ -32,13 +32,13 @@ int compare_bloc(struct hache_entree *table, uint32_t bloc_depart, const char *d
         actuel = table[actuel].suivant;
     }
 
-    return 1;
+    return BLOC_ERREUR;
 }
 
-int recherche_bloc(const char *nom_table, struct hache_entree *table, const void *C, size_t taille_C, uint32_t type_donnee, uint32_t b) {
+uint32_t recherche_bloc(const char *nom_table, struct hache_entree *table, const void *C, size_t taille_C, uint32_t type_donnee, uint32_t b) {
     uint32_t index = h(nom_table, C, taille_C, b);
     if (index == BLOC_ERREUR) {
-        return -1;
+        return BLOC_ERREUR;
     }
 
     uint32_t i = index;
@@ -54,7 +54,7 @@ int recherche_bloc(const char *nom_table, struct hache_entree *table, const void
                     return i;
                 }
             } else {
-                if (table[i].longueur == taille_C && compare_bloc(table, i, C, taille_C) == 1) {
+                if (table[i].longueur == taille_C && compare_bloc(table, i, C, taille_C) == BLOC_ERREUR) {
                     return i;
                 }
             }
@@ -63,10 +63,10 @@ int recherche_bloc(const char *nom_table, struct hache_entree *table, const void
         i = (i + 1) % b;
     } while (i != index);
 
-    return -1;
+    return BLOC_ERREUR;
 }
 
-int bloc_suffisant(struct hache_entree *table, size_t taille_chaine, const uint32_t b) {
+uint32_t bloc_suffisant(struct hache_entree *table, size_t taille_chaine, const uint32_t b) {
     uint32_t dispo = 0;
     for (uint32_t i = 0; i < b; i++) {
         if (table[i].longueur == BLOC_LIBRE) dispo++;
@@ -75,7 +75,7 @@ int bloc_suffisant(struct hache_entree *table, size_t taille_chaine, const uint3
     uint32_t besoin = (taille_chaine + ESPACE_MAX - 1) / ESPACE_MAX;
     if (dispo < besoin) {
         fprintf(stderr, "[ERREUR] bloc_suffisant: la table n'a pas assez de blocs pour inserer toutes les donnees.\n");
-        return -1;
+        return BLOC_ERREUR;
     }
 
     return 0;
