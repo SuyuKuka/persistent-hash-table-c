@@ -24,7 +24,7 @@ void close_table(struct table_entree *t) {
     close(t->fd);
 }
 
-long insert_nom_fichier(struct table_entree *t, const char *donnee, const int premier_bloc) {
+uint32_t insert_nom_fichier(struct table_entree *t, const char *donnee, const int premier_bloc) {
     uint32_t dernier_bloc = premier_bloc;
 
     while (t->table[dernier_bloc].suivant != FIN_CHAINE) {
@@ -49,7 +49,7 @@ long insert_nom_fichier(struct table_entree *t, const char *donnee, const int pr
         }
 
         t->table[dernier_bloc].longueur -= 2 * sizeof(uint32_t);
-        return -1;
+        return BLOC_ERREUR;
     }
     
     t->table[dernier_bloc].suivant = nouveau_bloc;
@@ -63,7 +63,7 @@ long insert_nom_fichier(struct table_entree *t, const char *donnee, const int pr
     return dernier_bloc;
 }
 
-long handle_data(const char *nom_table, const char *cle, size_t taille_cle, struct table_entree *t, const char *donnee, size_t taille_donnee, uint32_t type_donnee) {
+uint32_t handle_data(const char *nom_table, const char *cle, size_t taille_cle, struct table_entree *t, const char *donnee, size_t taille_donnee, uint32_t type_donnee) {
     int bloc = recherche_bloc(nom_table, t->table, cle, taille_cle, type_donnee, t->b);
     if (type_donnee == TYPE_NOM_FICHIER) {
         if (bloc >= 0) {
@@ -72,18 +72,22 @@ long handle_data(const char *nom_table, const char *cle, size_t taille_cle, stru
     } else {
         if (bloc >= 0) {
             fprintf(stderr, "[ALERTE] handle_data: la donnee existe deja dans la table.\n");
-            return -1;
+            return BLOC_ERREUR;
         }
     }
 
     return insertdata(nom_table, cle, taille_cle, t, donnee, taille_donnee, type_donnee);
 }
 
-long insertdata(const char *nom_table, const char *cle, size_t taille_cle, struct table_entree *t, const char *donnee, size_t taille_donnee, uint32_t type_donnee) {
+uint32_t insertdata(const char *nom_table, const char *cle, size_t taille_cle, struct table_entree *t, const char *donnee, size_t taille_donnee, uint32_t type_donnee) {
     size_t offset = 0;
     uint32_t index_actuel;
     uint32_t index_precedent = FIN_CHAINE;
     uint32_t index = h(nom_table, cle, taille_cle, t->b);
+    if (index == BLOC_ERREUR) {
+        return BLOC_ERREUR;
+    }
+
     while (taille_donnee > 0) {
         size_t taille_actuel;
         if (taille_donnee > ESPACE_MAX) {
@@ -94,7 +98,7 @@ long insertdata(const char *nom_table, const char *cle, size_t taille_cle, struc
         
         index_actuel = bloc_libre(t->table, t->b, index);
         if (index_actuel == BLOC_ERREUR) {
-            return -1;
+            return BLOC_ERREUR;
         }
 
         t->table[index_actuel].premier = index;
@@ -200,7 +204,7 @@ int insertstring_cmd(const char *nom_table, const char *chaine) {
         return -1;
     }
 
-    if (handle_data(nom_table, chaine, taille_chaine, &t, chaine, taille_chaine, TYPE_CHAINE) < 0) {
+    if (handle_data(nom_table, chaine, taille_chaine, &t, chaine, taille_chaine, TYPE_CHAINE) == BLOC_ERREUR) {
         close_table(&t);
         return -1;
     }
@@ -209,7 +213,7 @@ int insertstring_cmd(const char *nom_table, const char *chaine) {
     return 0;
 }
 
-void insertfile_cmd(const char *nom_table, const char *nom_fichier) {
+int insertfile_cmd(const char *nom_table, const char *nom_fichier) {
     struct table_entree t;
     if (open_table(nom_table, &t, O_RDWR, PROT_READ | PROT_WRITE) < 0) {
         return -1;
@@ -265,7 +269,7 @@ void insertfile_cmd(const char *nom_table, const char *nom_fichier) {
     }
 
     long index = handle_data(nom_table, donnee, taille_totale, &t, donnee, taille_totale, TYPE_FICHIER);
-    if (index >= 0) {
+    if (index != BLOC_ERREUR) {
         uint32_t i = (uint32_t)index;
         size_t taille_nom = strlen(nom_fichier) + 1;
         char *nom_donnee = malloc(taille_nom + sizeof(uint32_t));
@@ -281,8 +285,11 @@ void insertfile_cmd(const char *nom_table, const char *nom_fichier) {
         memcpy(nom_donnee, nom_fichier, taille_nom);
         memcpy(nom_donnee + taille_nom, &i, sizeof(uint32_t));
 
-        handle_data(nom_table, nom_fichier, strlen(nom_fichier), &t, nom_donnee, taille_nom + sizeof(uint32_t), TYPE_NOM_FICHIER);
+        uint32_t j = handle_data(nom_table, nom_fichier, strlen(nom_fichier), &t, nom_donnee, taille_nom + sizeof(uint32_t), TYPE_NOM_FICHIER);
         free(nom_donnee);
+        if (j == BLOC_ERREUR) {
+            return -1;
+        }
     }
     
     free(donnee);
@@ -387,7 +394,7 @@ int delete_cmd(const char *nom_table, const char *chaine) {
 }
 
 int check_cmd(const char *nom_table) {
-    
+    (void)nom_table;
     return 0;
 }
 

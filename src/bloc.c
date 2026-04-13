@@ -37,6 +37,10 @@ int compare_bloc(struct hache_entree *table, uint32_t bloc_depart, const char *d
 
 int recherche_bloc(const char *nom_table, struct hache_entree *table, const void *C, size_t taille_C, uint32_t type_donnee, uint32_t b) {
     uint32_t index = h(nom_table, C, taille_C, b);
+    if (index == BLOC_ERREUR) {
+        return -1;
+    }
+
     uint32_t i = index;
     do {
         if (table[i].longueur == BLOC_LIBRE) {
@@ -79,6 +83,10 @@ int bloc_suffisant(struct hache_entree *table, size_t taille_chaine, const uint3
 
 int bloc_suffisant_fichier(const char *nom_table, struct hache_entree *table, const char *nom_fichier, uint32_t b) {
     uint32_t index = h(nom_table, nom_fichier, strlen(nom_fichier), b);
+    if (index == BLOC_ERREUR) {
+        return -1;
+    }
+
     uint32_t i = index;
 
     do {
@@ -139,7 +147,7 @@ int print_bloc(const char *nom_table) {
         if (t.table[i].longueur == BLOC_LIBRE) {
             printf("[DEBUG] %u | Vide\n", i);
         } else {
-            printf("[DEBUG] %u | Occupe | Taille: %4u | Premier: %u | Suivant: %u\n", i, table[i].longueur, table[i].premier, table[i].suivant);
+            printf("[DEBUG] %u | Occupe | Taille: %4u | Premier: %u | Suivant: %u\n", i, t.table[i].longueur, t.table[i].premier, t.table[i].suivant);
         }
     }
     printf("----------------------------------------------------------------------------\n");
