@@ -64,13 +64,13 @@ uint32_t insert_nom_fichier(struct table_entree *t, const char *donnee, const in
 }
 
 uint32_t handle_data(const char *nom_table, const char *cle, size_t taille_cle, struct table_entree *t, const char *donnee, size_t taille_donnee, uint32_t type_donnee) {
-    int bloc = recherche_bloc(nom_table, t->table, cle, taille_cle, type_donnee, t->b);
+    uint32_t bloc = recherche_bloc(nom_table, t->table, cle, taille_cle, type_donnee, t->b);
     if (type_donnee == TYPE_NOM_FICHIER) {
-        if (bloc >= 0) {
+        if (bloc != BLOC_ERREUR) {
             return insert_nom_fichier(t, donnee, bloc);
         }
     } else {
-        if (bloc >= 0) {
+        if (bloc != BLOC_ERREUR) {
             fprintf(stderr, "[ALERTE] handle_data: la donnee existe deja dans la table.\n");
             return BLOC_ERREUR;
         }
@@ -199,7 +199,7 @@ int insertstring_cmd(const char *nom_table, const char *chaine) {
     }
 
     size_t taille_chaine = strlen(chaine);
-    if (bloc_suffisant(t.table, taille_chaine, t.b) < 0) {
+    if (bloc_suffisant(t.table, taille_chaine, t.b) == BLOC_ERREUR) {
         close_table(&t);
         return -1;
     }
@@ -260,7 +260,7 @@ int insertfile_cmd(const char *nom_table, const char *nom_fichier) {
 
     uint32_t bloc_necessaire = bloc_suffisant_fichier(nom_table, t.table, nom_fichier, t.b);
     size_t taille_necessaire = taille_totale + (bloc_necessaire * ESPACE_MAX);
-    if (bloc_suffisant(t.table, taille_necessaire, t.b) < 0) {
+    if (bloc_suffisant(t.table, taille_necessaire, t.b) == BLOC_ERREUR) {
         free(donnee);
         munmap(contenu, st.st_size);
         close(fd);
@@ -268,7 +268,7 @@ int insertfile_cmd(const char *nom_table, const char *nom_fichier) {
         return -1;
     }
 
-    long index = handle_data(nom_table, donnee, taille_totale, &t, donnee, taille_totale, TYPE_FICHIER);
+    uint32_t index = handle_data(nom_table, donnee, taille_totale, &t, donnee, taille_totale, TYPE_FICHIER);
     if (index != BLOC_ERREUR) {
         uint32_t i = (uint32_t)index;
         size_t taille_nom = strlen(nom_fichier) + 1;
