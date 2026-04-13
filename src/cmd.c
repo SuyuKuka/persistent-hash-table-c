@@ -154,8 +154,6 @@ void make_cmd(const char *nom_table, const uint32_t b) {
     close(fd);
 }
 
-// TODO: afficher le nombre de chaine, fichiers, objets dans la table
-// Structure de la table pas encore adapté pour cela (manque un uint32_t type)
 void free_cmd(const char *nom_table) {
     struct table_entree t;
     if (open_table(nom_table, &t, O_RDONLY, PROT_READ) < 0) {
@@ -164,15 +162,29 @@ void free_cmd(const char *nom_table) {
     }
 
     uint32_t bloc_libre = 0;
+    uint32_t nb_chaine = 0;
+    uint32_t nb_fichier = 0;
     for (uint32_t i = 0; i < t.b; i++) {
         if (t.table[i].longueur == BLOC_LIBRE) {
             bloc_libre++;
+        }
+        
+        if (t.table[i].suivant == FIN_CHAINE) {
+            if (t.table[i].type == TYPE_CHAINE) {
+                nb_chaine++;
+            } else if (t.table[i].type == TYPE_FICHIER) {
+                nb_fichier++;
+            }
         }
     }
 
     printf("[INFO] Blocs libres: %u\n", bloc_libre);
     printf("[INFO] Blocs occupes: %u\n", t.b - bloc_libre);
-    printf("[INFO] Taux de remplissage: %.2f%% \n", ((double)(t.b - bloc_libre) / (double)t.b) * 100.0);
+    printf("[INFO] Taux de remplissage: %.2f%% \n\n", ((double)(t.b - bloc_libre) / (double)t.b) * 100.0);
+
+    printf("[INFO] Nombre de chaine: %u\n", nb_chaine);
+    printf("[INFO] Nombre de fichier: %u\n", nb_fichier);
+    printf("[INFO] Nombre d'objet: %u\n", nb_chaine + nb_fichier);
 
     close_table(&t);
 }
