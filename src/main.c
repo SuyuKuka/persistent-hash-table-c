@@ -3,6 +3,146 @@
 #include <string.h>
 #include "cmd.h"
 
+int handle_make(int argc, char *argv[]) {
+    if (argc != 5) {
+        fprintf(stderr, "[ERREUR] Utilisation: %s make table slowns b\n", argv[0]);
+        return EXIT_FAILURE;
+    }
+
+    make_cmd(argv[2], atoi(argv[4]));
+    return EXIT_SUCCESS;
+}
+
+int handle_free(int argc, char *argv[]) {
+    if (argc != 4) {
+        fprintf(stderr, "[ERREUR] Utilisation: %s free table slowns\n", argv[0]);
+        return EXIT_FAILURE;
+    }
+
+    free_cmd(argv[2]);
+    return EXIT_SUCCESS;
+}
+
+int handle_insertstring(int argc, char *argv[]) {
+    if (argc < 5) {
+        fprintf(stderr, "[ERREUR] Utilisation: %s insertstring table slowns chaine\n", argv[0]);
+        return EXIT_FAILURE;
+    }
+
+    size_t taille_chaine = 0;
+    for (int i = 4; i < argc; i++) {
+        taille_chaine += strlen(argv[i]) + 1;
+    }
+
+    char *chaine = malloc(taille_chaine);
+    if (chaine == NULL) {
+        perror("[ERREUR] malloc");
+        return EXIT_FAILURE;
+    }
+    
+    chaine[0] = '\0';
+    for (int i = 4; i < argc; i++) {
+        strcat(chaine, argv[i]);
+        if (i < argc - 1) {
+            strcat(chaine, " ");
+        }
+    }
+
+    if (insertstring_cmd(argv[2], chaine) == -1) {
+        free(chaine);
+        return EXIT_FAILURE;
+    }
+    free(chaine);
+    return EXIT_SUCCESS;
+}
+
+int handle_insertfile(int argc, char *argv[]) {
+    if (argc != 5) {
+        fprintf(stderr, "[ERREUR] Utilisation: %s insertfile table slowns nom_fichier\n", argv[0]);
+        return EXIT_FAILURE;
+    }
+
+    insertfile_cmd(argv[2], argv[4]);
+    return EXIT_SUCCESS;
+}
+
+int handle_lookup(int argc, char *argv[]) {
+    (void)argc;
+    (void)argv;
+    lookup_cmd();
+    return EXIT_SUCCESS;
+}
+
+int handle_deletehash(int argc, char *argv[]) {
+    (void)argc;
+    (void)argv;
+    deletehash_cmd();
+    return EXIT_SUCCESS;
+}
+
+// TODO: adapter pour fichier 
+int handle_delete(int argc, char *argv[]) {
+    if (argc < 5) {
+        fprintf(stderr, "[ERREUR] Utilisation: %s delete table slowns chaine\n", argv[0]);
+        return EXIT_FAILURE;
+    }
+
+    size_t taille_chaine = 0;
+    for (int i = 4; i < argc; i++) {
+        taille_chaine += strlen(argv[i]) + 1;
+    }
+
+    char *chaine = malloc(taille_chaine);
+    if (chaine == NULL) {
+        perror("[ERREUR] malloc");
+        return EXIT_FAILURE;
+    }
+
+    chaine[0] = '\0';
+    for (int i = 4; i < argc; i++) {
+        strcat(chaine, argv[i]);
+        if (i < argc - 1) {
+            strcat(chaine, " ");
+        }
+    }
+
+    if (delete_cmd(argv[2], chaine) == -1) {
+        free(chaine);
+        return EXIT_FAILURE;
+    }
+
+    free(chaine);
+    return EXIT_SUCCESS;
+}
+
+int handle_check(int argc, char *argv[]) {
+    (void)argc;
+    (void)argv;
+    check_cmd();
+    return EXIT_SUCCESS;
+}
+
+int handle_extend(int argc, char *argv[]) {
+    (void)argc;
+    (void)argv;
+    extend_cmd();
+    return EXIT_SUCCESS;
+}
+
+int handle_shrink(int argc, char *argv[]) {
+    (void)argc;
+    (void)argv;
+    shrink_cmd();
+    return EXIT_SUCCESS;
+}
+
+int handle_ajust(int argc, char *argv[]) {
+    (void)argc;
+    (void)argv;
+    ajust_cmd();
+    return EXIT_SUCCESS;
+}
+
 int main(int argc, char *argv[]) {
     if (argc < 4) {
         fprintf(stderr, "[ERREUR] Utilisation: %s commande table slowns [autres parametres]\n", argv[0]);
@@ -10,100 +150,34 @@ int main(int argc, char *argv[]) {
     }
 
     char *cmd = argv[1];
-    char *nom_table = argv[2];
-
+    int handle;
     if (strcmp(cmd, "make") == 0) {
-        if (argc != 5) {
-            fprintf(stderr, "[ERREUR] Utilisation: %s make table slowns b\n", argv[0]);
-            return EXIT_FAILURE;
-        }
-
-        make_cmd(nom_table, atoi(argv[4]));
+        handle = handle_make(argc, argv);
     } else if (strcmp(cmd, "free") == 0) {
-        if (argc != 4) {
-            fprintf(stderr, "[ERREUR] Utilisation: %s free table slowns\n", argv[0]);
-            return EXIT_FAILURE;
-        }
-
-        free_cmd(nom_table);
+        handle = handle_free(argc, argv);
     } else if (strcmp(cmd, "insertstring") == 0) {
-        if (argc < 5) {
-            fprintf(stderr, "[ERREUR] Utilisation: %s insertstring table slowns chaine\n", argv[0]);
-            return EXIT_FAILURE;
-        }
-
-        size_t taille_chaine = 0;
-        for (int i = 4; i < argc; i++) {
-            taille_chaine += strlen(argv[i]) + 1;
-        }
-
-        char *chaine = malloc(taille_chaine);
-        if (chaine == NULL) {
-            perror("[ERREUR] malloc");
-            return EXIT_FAILURE;
-        }
-        
-        chaine[0] = '\0';
-        for (int i = 4; i < argc; i++) {
-            strcat(chaine, argv[i]);
-            if (i < argc - 1) {
-                strcat(chaine, " ");
-            }
-        }
-
-        if (insertstring_cmd(nom_table, chaine) == -1) {
-            free(chaine);
-            return EXIT_FAILURE;
-        }
-        free(chaine);
+        handle = handle_insertstring(argc, argv);
     } else if (strcmp(cmd, "insertfile") == 0) {
-        insertfile_cmd();
+        handle = handle_insertfile(argc, argv);
     } else if (strcmp(cmd, "lookup") == 0) {
-        lookup_cmd();
+        handle = handle_lookup(argc, argv);
     } else if (strcmp(cmd, "deletehash") == 0) {
-        deletehash_cmd();
+        handle = handle_deletehash(argc, argv);
     } else if (strcmp(cmd, "delete") == 0) {
-        if (argc < 5) {
-            fprintf(stderr, "[ERREUR] Utilisation: %s delete table slowns chaine\n", argv[0]);
-            return EXIT_FAILURE;
-        }
-
-        size_t taille_chaine = 0;
-        for (int i = 4; i < argc; i++) {
-            taille_chaine += strlen(argv[i]) + 1;
-        }
-
-        char *chaine = malloc(taille_chaine);
-        if (chaine == NULL) {
-            perror("[ERREUR] malloc");
-            return EXIT_FAILURE;
-        }
-
-        chaine[0] = '\0';
-        for (int i = 4; i < argc; i++) {
-            strcat(chaine, argv[i]);
-            if (i < argc - 1) {
-                strcat(chaine, " ");
-            }
-        }
-
-        if (delete_cmd(nom_table, chaine) == -1) {
-            free(chaine);
-            return EXIT_FAILURE;
-        }
-
-        free(chaine);
-    }else if (strcmp(cmd, "check") == 0) {
-        check_cmd();
+        handle = handle_delete(argc, argv);
+    } else if (strcmp(cmd, "check") == 0) {
+        handle = handle_check(argc, argv);
     } else if (strcmp(cmd, "extend") == 0) {
-        extend_cmd();
+        handle = handle_extend(argc, argv);
     } else if (strcmp(cmd, "shrink") == 0) {
-        shrink_cmd();
+        handle = handle_shrink(argc, argv);
+    } else if (strcmp(cmd, "ajust") == 0) {
+        handle = handle_ajust(argc, argv);
     } else {
         fprintf(stderr, "[ERREUR] Commande %s inconnue.\n", cmd);
         return EXIT_FAILURE;
     }
 
-    print_bloc(nom_table);
-    return EXIT_SUCCESS;
+    print_bloc(argv[2]);
+    return handle;
 }
