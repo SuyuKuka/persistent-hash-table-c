@@ -49,7 +49,7 @@ int recherche_bloc(const char *nom_table, struct hache_entree *table, const void
                     return i;
                 }
             } else {
-                if (table[i].longueur == taille_C && compare_bloc(table, i, C, taille_C) == 0) {
+                if (table[i].longueur == taille_C && compare_bloc(table, i, C, taille_C) == 1) {
                     return i;
                 }
             }
