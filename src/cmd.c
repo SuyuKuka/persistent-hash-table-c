@@ -126,7 +126,7 @@ uint32_t insertdata(const char *nom_table, const char *cle, size_t taille_cle, s
 }
 
 uint32_t *recuperer_premiere_donnee(struct table_entree *t) {
-    uint32_t *premiere_donnee = malloc(t->b * (sizeof(uint32_t)));
+    uint32_t *premiere_donnee = calloc(t->b * (sizeof(uint32_t)));
     if (premiere_donnee == NULL) {
         perror("malloc (check)");
         return NULL;
@@ -139,7 +139,7 @@ uint32_t *recuperer_premiere_donnee(struct table_entree *t) {
                 if (suivant < t->b) {
                     premiere_donnee[suivant] = 1; 
                 } else {
-                    fprintf(stderr, "[ALERTE] Le bloc %u est corrompu: il pointe vers un bloc inexistant (%ls) !\n", i, premiere_donnee);
+                    fprintf(stderr, "[ALERTE] Le bloc %u est corrompu: il pointe vers un bloc inexistant (%u) !\n", i, premiere_donnee[suivant]);
                 }
             }
         }
@@ -492,7 +492,7 @@ int check_cmd(const char *nom_table) {
 
         if (t.table[i].type != TYPE_NOM_FICHIER) {
             char *chaine = recuperer_chaine_complete(t.table, i);
-            uint32_t hash = h(nom_table, chaine, strlen(chaine), t.b);
+            uint32_t hash = h(nom_table, chaine, t.table[i].longueur, t.b);
             uint32_t j = i;
             while (j != FIN_CHAINE) {
                 if (hash != t.table[j].premier) {
