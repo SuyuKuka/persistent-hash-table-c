@@ -138,7 +138,7 @@ uint32_t *recuperer_premiere_donnee(struct table_entree *t) {
                 if (suivant < t->b) {
                     premiere_donnee[suivant] = 1; 
                 } else {
-                    fprintf(stderr, "[ALERTE] Le bloc %u est corrompu: il pointe vers un bloc inexistant (%u) !\n", i, premiere_donnee[suivant]);
+                    fprintf(stderr, "[ALERTE] Le bloc %u est corrompu: il pointe vers un bloc inexistant (%u) !\n", i, suivant);
                 }
             }
         }
