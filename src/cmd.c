@@ -60,14 +60,15 @@ uint32_t insert_nom_fichier(struct table_entree *t, const char *donnee, const in
     t->table[nouveau_bloc].longueur = sizeof(uint32_t);
 
     memcpy(t->table[nouveau_bloc].obj, donnee, sizeof(uint32_t));
-    return dernier_bloc;
+    return premier_bloc;
 }
 
 uint32_t handle_data(const char *nom_table, const char *cle, size_t taille_cle, struct table_entree *t, const char *donnee, size_t taille_donnee, uint32_t type_donnee) {
     uint32_t bloc = recherche_bloc(nom_table, t->table, cle, taille_cle, type_donnee, t->b);
     if (type_donnee == TYPE_NOM_FICHIER) {
         if (bloc != BLOC_ERREUR) {
-            return insert_nom_fichier(t, donnee, bloc);
+            printf("doneee : %s\n", donnee);
+            return insert_nom_fichier(t, donnee + strlen(donnee) + 1, bloc);
         }
     } else {
         if (bloc != BLOC_ERREUR) {
@@ -81,6 +82,7 @@ uint32_t handle_data(const char *nom_table, const char *cle, size_t taille_cle, 
 
 uint32_t insertdata(const char *nom_table, const char *cle, size_t taille_cle, struct table_entree *t, const char *donnee, size_t taille_donnee, uint32_t type_donnee) {
     size_t offset = 0;
+    uint32_t index_premier = BLOC_ERREUR;
     uint32_t index_actuel;
     uint32_t index_precedent = FIN_CHAINE;
     uint32_t index = h(nom_table, cle, taille_cle, t->b);
@@ -101,6 +103,10 @@ uint32_t insertdata(const char *nom_table, const char *cle, size_t taille_cle, s
             return BLOC_ERREUR;
         }
 
+        if (index_premier == BLOC_ERREUR) {
+            index_premier = index_actuel;
+        }
+
         t->table[index_actuel].premier = index;
         t->table[index_actuel].suivant = FIN_CHAINE;
         t->table[index_actuel].longueur = taille_donnee;
@@ -116,7 +122,78 @@ uint32_t insertdata(const char *nom_table, const char *cle, size_t taille_cle, s
         index_precedent = index_actuel;
     }
 
-    return index;
+    return index_premier;
+}
+
+uint32_t *recuperer_premiere_donnee(struct table_entree *t) {
+    uint32_t *premiere_donnee = malloc(t->b * (sizeof(uint32_t)));
+    if (premiere_donnee == NULL) {
+        perror("malloc (check)");
+        return NULL;
+    }
+
+    for (uint32_t i = 0; i < t->b; i++) {
+        if (t->table[i].longueur != BLOC_LIBRE) {
+            uint32_t suivant = t->table[i].suivant;
+            if (suivant != FIN_CHAINE) {
+                if (suivant < t->b) {
+                    premiere_donnee[suivant] = 1; 
+                } else {
+                    fprintf(stderr, "[ALERTE] Le bloc %u est corrompu: il pointe vers un bloc inexistant (%ls) !\n", i, premiere_donnee);
+                }
+            }
+        }
+    }
+
+    return premiere_donnee;
+}
+
+char *recuperer_chaine_complete(struct hache_entree *table, uint32_t index) {
+    uint32_t taille = table[index].longueur;
+    char *chaine = malloc(taille + 1);
+    if (chaine == NULL) {
+        perror("malloc (recuperer_chaine_complete)");
+        return NULL;
+    }
+
+    uint32_t i = index;
+    uint32_t offset = 0;
+    while (i != FIN_CHAINE && taille > 0) {
+        uint32_t taille_chaine = (taille < ESPACE_MAX) ? taille : ESPACE_MAX;
+        memcpy(chaine + offset, table[i].obj, taille_chaine);
+        taille -= taille_chaine;
+        offset += taille_chaine;
+
+        i = table[i].suivant;
+    }
+
+    chaine[offset] = '\0';
+    return chaine;
+}
+
+uint32_t *recuperer_versions_fichier(struct hache_entree *table, uint32_t index) {
+    uint32_t offset = strlen(table[index].obj) + 1;
+    uint32_t *versions = malloc(table[index].longueur - offset);
+    if (versions == NULL) {
+        perror("malloc (recuperer_versions_fichier)");
+        return NULL;
+    }
+
+    uint32_t i = index;
+    uint32_t offset_versions = 0;
+    while(i != FIN_CHAINE) {
+        uint32_t taille_bloc = (table[i].longueur < ESPACE_MAX) ? table[i].longueur : ESPACE_MAX; 
+        while (offset + sizeof(uint32_t) <= taille_bloc) {
+            memcpy(versions + offset_versions, table[i].obj + offset, sizeof(uint32_t));
+            offset += sizeof(uint32_t);
+            offset_versions++;
+        }
+        
+        offset = 0;
+        i = table[i].suivant;
+    }
+
+    return versions;
 }
 
 int make_cmd(const char *nom_table, const uint32_t b) {
@@ -270,7 +347,6 @@ int insertfile_cmd(const char *nom_table, const char *nom_fichier) {
 
     uint32_t index = handle_data(nom_table, donnee, taille_totale, &t, donnee, taille_totale, TYPE_FICHIER);
     if (index != BLOC_ERREUR) {
-        uint32_t i = (uint32_t)index;
         size_t taille_nom = strlen(nom_fichier) + 1;
         char *nom_donnee = malloc(taille_nom + sizeof(uint32_t));
         if (nom_donnee == NULL) {
@@ -283,11 +359,11 @@ int insertfile_cmd(const char *nom_table, const char *nom_fichier) {
         }
 
         memcpy(nom_donnee, nom_fichier, taille_nom);
-        memcpy(nom_donnee + taille_nom, &i, sizeof(uint32_t));
+        memcpy(nom_donnee + taille_nom, &index, sizeof(uint32_t));
 
-        uint32_t j = handle_data(nom_table, nom_fichier, strlen(nom_fichier), &t, nom_donnee, taille_nom + sizeof(uint32_t), TYPE_NOM_FICHIER);
+        uint32_t i = handle_data(nom_table, nom_fichier, strlen(nom_fichier), &t, nom_donnee, taille_nom + sizeof(uint32_t), TYPE_NOM_FICHIER);
         free(nom_donnee);
-        if (j == BLOC_ERREUR) {
+        if (i == BLOC_ERREUR) {
             return -1;
         }
     }
@@ -394,7 +470,98 @@ int delete_cmd(const char *nom_table, const char *chaine) {
 }
 
 int check_cmd(const char *nom_table) {
-    (void)nom_table;
+    struct table_entree t;
+    if (open_table(nom_table, &t, O_RDONLY, PROT_READ) < 0) {
+        return -1;
+    }
+
+    uint32_t *premiere_donnee = recuperer_premiere_donnee(&t);
+    if (premiere_donnee == NULL) {
+        close_table(&t);
+        return -1;
+    }
+
+    for (uint32_t i = 0; i < t.b; i++) {
+        if (t.table[i].longueur == BLOC_LIBRE) {
+            continue;
+        }
+        
+        if (premiere_donnee[i] == 1) {
+            continue;
+        }
+
+        if (t.table[i].type != TYPE_NOM_FICHIER) {
+            char *chaine = recuperer_chaine_complete(t.table, i);
+            uint32_t hash = h(nom_table, chaine, strlen(chaine), t.b);
+            uint32_t j = i;
+            while (j != FIN_CHAINE) {
+                if (hash != t.table[j].premier) {
+                    fprintf(stderr, "[ALERTE] Le bloc %u est corrompu, le hash du contenu est différent de premier.\n", j);
+                    free(chaine);
+                    free(premiere_donnee);
+                    return -1;
+                } 
+
+                j = t.table[j].suivant;
+            }
+
+            free(chaine);
+        } else {
+            char *nom_fichier = t.table[i].obj;
+            uint32_t hash_nom_fichier = h(nom_table, nom_fichier, strlen(nom_fichier), t.b);
+            if (hash_nom_fichier != t.table[i].premier) {
+                fprintf(stderr, "[ALERTE] Le bloc %u est corrompu (%s): le hash du contenu est différent de premier.\n", i, nom_fichier);
+                return -1;
+            }
+
+            uint32_t offset = strlen(t.table[i].obj) + 1;
+            if (t.table[i].obj[offset - 1] != '\0') {
+                fprintf(stderr, "[ALERTE] Le bloc %u est corrompu: \\0 n'a pas ete trouve.\n", i);
+                return -1;
+            }
+                
+            uint32_t *versions = recuperer_versions_fichier(t.table, i);
+            if (versions == NULL) {
+                perror("malloc (check)");
+                free(premiere_donnee);
+                close_table(&t);
+                return -1;
+            }
+
+            uint32_t nb_elements = (t.table[i].longueur - offset) / sizeof(uint32_t);
+            for (uint32_t k = 0; k < nb_elements; k++) {
+                if (versions[k] > t.b) {
+                    fprintf(stderr, "[ALERTE] Le bloc %u est corrompu (%s): l'index pointe vers une zone non accessible.\n", k, nom_fichier);
+                    free(versions);
+                    free(premiere_donnee);
+                    close_table(&t);
+                    return -1;
+                }
+
+                if (t.table[versions[k]].longueur == BLOC_LIBRE || t.table[versions[k]].type != TYPE_FICHIER) {
+                    fprintf(stderr, "[ALERTE] Le bloc %u est corrompu (%s): l'index ne pointe pas vers le bon fichier.\n", k, nom_fichier);
+                    free(versions);
+                    free(premiere_donnee);
+                    close_table(&t);
+                    return -1;
+                }
+
+                if (memcmp(t.table[versions[k]].obj + strlen("nom:"), nom_fichier, strlen(nom_fichier)) != 0) {
+                    fprintf(stderr, "[ALERTE] Le bloc %u est corrompu (%s): le nom du fichier ne correspond pas.\n", k, nom_fichier);
+                    free(versions);
+                    free(premiere_donnee);
+                    close_table(&t);
+                    return -1;
+                }
+            }
+
+            free(versions);
+        }
+    }
+
+    printf("[INFO] Check terminé: aucune donnée corrompu.\n");
+    free(premiere_donnee);
+    close_table(&t);
     return 0;
 }
 
