@@ -310,6 +310,7 @@ int check_cmd(const char *nom_table) {
                     fprintf(stderr, "[ALERTE] Le bloc %u est corrompu, le hash du contenu est différent de premier.\n", j);
                     free(chaine);
                     free(premiere_donnee);
+                    close_table(&t);
                     return -1;
                 } 
 
@@ -345,8 +346,8 @@ int check_cmd(const char *nom_table) {
 
             uint32_t nb_elements = (t.table[i].longueur - offset) / sizeof(uint32_t);
             for (uint32_t k = 0; k < nb_elements; k++) {
-                if (versions[k] > t.b) {
-                    fprintf(stderr, "[ALERTE] Le bloc %u est corrompu (%s): l'index pointe vers une zone non accessible.\n", k, nom_fichier);
+                if (versions[k] >= t.b) {
+                    fprintf(stderr, "[ALERTE] Le bloc %u est corrompu (%s): l'index pointe vers une zone non accessible.\n", versions[k], nom_fichier);
                     free(versions);
                     free(premiere_donnee);
                     close_table(&t);
@@ -354,7 +355,7 @@ int check_cmd(const char *nom_table) {
                 }
 
                 if (t.table[versions[k]].longueur == BLOC_LIBRE || t.table[versions[k]].type != TYPE_FICHIER) {
-                    fprintf(stderr, "[ALERTE] Le bloc %u est corrompu (%s): l'index ne pointe pas vers le bon fichier.\n", k, nom_fichier);
+                    fprintf(stderr, "[ALERTE] Le bloc %u est corrompu (%s): l'index ne pointe pas vers le bon fichier.\n", versions[k], nom_fichier);
                     free(versions);
                     free(premiere_donnee);
                     close_table(&t);
@@ -362,7 +363,7 @@ int check_cmd(const char *nom_table) {
                 }
 
                 if (memcmp(t.table[versions[k]].obj + strlen("nom:"), nom_fichier, strlen(nom_fichier)) != 0) {
-                    fprintf(stderr, "[ALERTE] Le bloc %u est corrompu (%s): le nom du fichier ne correspond pas.\n", k, nom_fichier);
+                    fprintf(stderr, "[ALERTE] Le bloc %u est corrompu (%s): le nom du fichier ne correspond pas.\n", versions[k], nom_fichier);
                     free(versions);
                     free(premiere_donnee);
                     close_table(&t);
