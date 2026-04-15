@@ -479,13 +479,14 @@ int ajust_cmd(const char *nom_table) {
             bloc_libre++;
         }
     }
-
-    uint32_t taux_remplissage = ((double)(t.b - bloc_libre) / (double)t.b) * 100.0;
-    if (taux_remplissage > 70) {
+    
+    close_table(&t);
+    double taux_remplissage = ((double)(t.b - bloc_libre) / (double)t.b) * 100.0;
+    if (taux_remplissage > 70.0) {
         if (extend_cmd(nom_table) < 0) {
             return -1;
         }
-    } else if (taux_remplissage < 10) {
+    } else if (taux_remplissage < 10.0) {
         if (shrink_cmd(nom_table) < 0) {
             return -1;
         }
