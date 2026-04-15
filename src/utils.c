@@ -1,4 +1,4 @@
-#include "utils.h"
+#include "../include/utils.h"
 
 int open_table(const char *nom_table, struct table_entree *t, const int flags_open, const int prot_mmap) {
     t->fd = open(nom_table, flags_open);
@@ -193,4 +193,60 @@ uint32_t *recuperer_versions_fichier(struct hache_entree *table, uint32_t index)
     }
 
     return versions;
+}
+
+uint32_t *supprimer_bloc(struct hache_entree *table, uint32_t index) {
+    table[index].premier = index;
+    table[index].suivant = FIN_CHAINE;
+    table[index].longueur = BLOC_LIBRE;
+    table[index].type = TYPE_VIDE;
+    memset(table[index].obj, 0, ESPACE_MAX);
+    return 0;
+}
+
+uint32_t supprimer_versions_fichier(const char *nom_table, struct hache_entree *table, const char *nom_fichier, const uint32_t hashcode, const uint32_t b) {
+    uint32_t hash = h(nom_table, nom_fichier, strlen(nom_fichier), b);
+    uint32_t i = hash;
+    uint32_t premier_supprimer = 1;
+    do {
+        if (table[i].premier == hash && table[i].type == TYPE_NOM_FICHIER && memcmp(nom_fichier, table[i].obj, strlen(nom_fichier)) == 0) {
+            uint32_t nb_elements = (table[i].longueur - strlen(table[i].obj) + 1) / sizeof(uint32_t);
+            if (nb_elements == 1) {
+                supprimer_bloc(table, i);
+                premier_supprimer = 0;
+                break;
+            }
+
+            uint32_t *versions = recuperer_versions_fichier(table, i);
+            if (versions == NULL) {
+                return BLOC_ERREUR;
+            }
+
+            uint32_t pos = BLOC_ERREUR;
+            for (uint32_t k = 0; k < nb_elements; k++) {
+                if (table[versions[k]].premier == hashcode) {
+                    pos = k;
+                }
+            }
+
+            if (pos != BLOC_ERREUR) {
+                for (uint32_t k = pos; k < nb_elements - 1; k++) {
+                    versions[k] = versions[k + 1]; 
+                }
+                nb_elements--;
+                table[i].longueur -= sizeof(uint32_t);
+                premier_supprimer = 0;
+            } else {
+                fprintf(stderr, "[ERREUR] supprimer_versions_fichier: l'index est corrompu\n");
+                free(versions);
+                return BLOC_ERREUR;
+            }
+
+            free(versions);
+        }
+
+        i = (i + 1) % b;
+    } while (i != hash);
+
+    return premier_supprimer;
 }

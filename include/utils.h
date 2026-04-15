@@ -1,5 +1,5 @@
-#ifndef UTILS_H
-#define UTILS_H
+#ifndef UTIL_H
+#define UTIL_H
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -25,5 +25,9 @@ uint32_t *recuperer_premiere_donnee(struct table_entree *t);
 char *recuperer_chaine_complete(struct hache_entree *table, uint32_t index);
 
 uint32_t *recuperer_versions_fichier(struct hache_entree *table, uint32_t index);
+
+uint32_t *supprimer_bloc(struct hache_entree *table, uint32_t index);
+
+uint32_t supprimer_versions_fichier(const char *nom_table, struct hache_entree *table, const char *nom_fichier, const uint32_t hashcode, const uint32_t b);
 
 #endif
