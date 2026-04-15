@@ -33,10 +33,10 @@ int delete_cmd(const char *nom_table, const char *chaine);
 
 int check_cmd(const char *nom_table);
 
-int extend_cmd();
+int extend_cmd(const char *nom_table);
 
-int shrink_cmd();
+int shrink_cmd(const char *nom_table);
 
-int ajust_cmd();
+int ajust_cmd(const char *nom_table);
 
 #endif

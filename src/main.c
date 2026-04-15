@@ -141,27 +141,36 @@ int handle_check(int argc, char *argv[]) {
 }
 
 int handle_extend(int argc, char *argv[]) {
-    (void)argc;
-    (void)argv;
-    if (extend_cmd() < 0) {
+    if (argc != 4) {
+        fprintf(stderr, "[ERREUR] Utilisation: %s extend table slowns\n", argv[0]);
+        return EXIT_FAILURE;
+    }
+
+    if (extend_cmd(argv[2]) < 0) {
         return EXIT_FAILURE;
     }
     return EXIT_SUCCESS;
 }
 
 int handle_shrink(int argc, char *argv[]) {
-    (void)argc;
-    (void)argv;
-    if (shrink_cmd() < 0) {
+    if (argc != 4) {
+        fprintf(stderr, "[ERREUR] Utilisation: %s shrink table slowns\n", argv[0]);
+        return EXIT_FAILURE;
+    }
+
+    if (shrink_cmd(argv[2]) < 0) {
         return EXIT_FAILURE;
     }
     return EXIT_SUCCESS;
 }
 
 int handle_ajust(int argc, char *argv[]) {
-    (void)argc;
-    (void)argv;
-    if (ajust_cmd() < 0) {
+    if (argc != 4) {
+        fprintf(stderr, "[ERREUR] Utilisation: %s ajust table slowns\n", argv[0]);
+        return EXIT_FAILURE;
+    }
+
+    if (ajust_cmd(argv[2]) < 0) {
         return EXIT_FAILURE;
     }
     return EXIT_SUCCESS;
