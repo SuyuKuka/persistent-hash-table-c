@@ -152,6 +152,35 @@ int print_bloc(const char *nom_table) {
     }
     printf("----------------------------------------------------------------------------\n");
 
+    uint32_t *premiere_donnee = recuperer_premiere_donnee(&t);
+    if (premiere_donnee == NULL) {
+        close_table(&t);
+        return -1;
+    }
+
+    for (uint32_t i = 0; i < t.b; i++) { 
+        if (t.table[i].longueur != BLOC_LIBRE && t.table[i].type == TYPE_NOM_FICHIER && premiere_donnee[i] == 0) {
+            uint32_t *versions = recuperer_versions_fichier(t.table, i);
+            if (versions == NULL) {
+                free(premiere_donnee);
+                return -1;
+            }
+
+            uint32_t offset = strlen(t.table[i].obj) + 1;
+            uint32_t nb_elements = (t.table[i].longueur - offset) / sizeof(uint32_t);
+            printf("[DEBUG] Fichier %u: %s\n", i, t.table[i].obj);
+            printf("[DEBUG] Nb elements: %u\n", nb_elements);
+            printf("[DEBUG] Index: [ ");
+            for (uint32_t k = 0; k < nb_elements; k++) {
+                printf("%u ", versions[k]);
+            }
+            printf("]\n");
+            printf("----------------------------------------------------------------------------\n");
+            free(versions);
+        }
+    }
+    
+    free(premiere_donnee);
     close_table(&t);
     return 0;
 }
