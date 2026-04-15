@@ -82,9 +82,12 @@ int handle_lookup(int argc, char *argv[]) {
 }
 
 int handle_deletehash(int argc, char *argv[]) {
-    (void)argc;
-    (void)argv;
-    if (deletehash_cmd() < 0) {
+    if (argc != 5) {
+        fprintf(stderr, "[ERREUR] Utilisation: %s deletehash table slowns hashcode\n", argv[0]);
+        return EXIT_FAILURE;
+    }
+
+    if (deletehash_cmd(argv[2], atoi(argv[4])) < 0) {
         return EXIT_FAILURE;
     }
     return EXIT_SUCCESS;

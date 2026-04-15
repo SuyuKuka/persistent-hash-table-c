@@ -191,8 +191,72 @@ int lookup_cmd() {
     return 0;
 }
 
-int deletehash_cmd() {
-    
+int deletehash_cmd(const char *nom_table, const uint32_t hashcode) {
+    struct table_entree t;
+    if (open_table(nom_table, &t, O_RDWR, PROT_READ | PROT_WRITE) < 0) {
+        return -1;
+    }
+
+    if (hashcode >= t.b) {
+        fprintf(stderr, "[ERREUR] deletehash: le hashcode est hors limite de la table.");
+        close_table(&t);
+        return -1;
+    }
+
+    uint32_t premier_supprimer = 1;
+    uint32_t index = hashcode;
+    do {
+        if (t.table[index].premier == hashcode) {
+            if (t.table[index].type == TYPE_CHAINE) {
+                supprimer_bloc(t.table, index);
+            } else if (t.table[index].type == TYPE_FICHIER) {
+                if (premier_supprimer == 1) {
+                    char nom_fichier[256];
+                    if (sscanf(t.table[index].obj, "nom:%255[^|]", nom_fichier) != 1) {
+                        fprintf(stderr, "[ERREUR] deletehash: fichier corrompu.\n");
+                        close_table(&t);
+                        return -1;
+                    }
+
+                    premier_supprimer = supprimer_versions_fichier(nom_table, t.table, nom_fichier, hashcode, t.b);
+                    if (premier_supprimer == BLOC_ERREUR) {
+                        close_table(&t);
+                        return -1;
+                    }
+                }
+
+                supprimer_bloc(t.table, index);
+            } else if (t.table[index].type == TYPE_NOM_FICHIER) {
+                uint32_t nb_elements = (t.table[index].longueur - strlen(t.table[index].obj) + 1) / sizeof(uint32_t);
+                uint32_t *versions = recuperer_versions_fichier(t.table, index);
+                if (versions == NULL) {
+                    close_table(&t);
+                    return -1;
+                }
+
+                for (uint32_t k = 0; k < nb_elements; k++) {
+                    uint32_t i = versions[k];
+                    while (i != FIN_CHAINE) {
+                        uint32_t j = t.table[i].suivant;
+                        supprimer_bloc(t.table, i); 
+                        i = j;
+                    }
+                }
+                
+                supprimer_bloc(t.table, index);
+                free(versions);
+            }
+        }
+
+        index = (index + 1) % t.b;
+    } while(hashcode != index);
+
+    if (deplacer_bloc(nom_table, t.table, hashcode, t.b) == BLOC_ERREUR) {
+        close_table(&t);
+        return -1;
+    }
+
+    close_table(&t);
     return 0;
 }
 
@@ -304,6 +368,12 @@ int check_cmd(const char *nom_table) {
         if (t.table[i].type != TYPE_NOM_FICHIER) {
             char *chaine = recuperer_chaine_complete(t.table, i);
             uint32_t hash = h(nom_table, chaine, t.table[i].longueur, t.b);
+            if (hash == BLOC_ERREUR) {
+                free(premiere_donnee);
+                close_table(&t);
+                return BLOC_ERREUR;
+            }
+
             uint32_t j = i;
             while (j != FIN_CHAINE) {
                 if (hash != t.table[j].premier) {
@@ -321,6 +391,12 @@ int check_cmd(const char *nom_table) {
         } else {
             char *nom_fichier = t.table[i].obj;
             uint32_t hash_nom_fichier = h(nom_table, nom_fichier, strlen(nom_fichier), t.b);
+            if (hash_nom_fichier == BLOC_ERREUR) {
+                free(premiere_donnee);
+                close_table(&t);
+                return BLOC_ERREUR;
+            }
+
             if (hash_nom_fichier != t.table[i].premier) {
                 fprintf(stderr, "[ALERTE] Le bloc %u est corrompu (%s): le hash du contenu est différent de premier.\n", i, nom_fichier);
                 free(premiere_donnee);
