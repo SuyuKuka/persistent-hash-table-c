@@ -195,13 +195,12 @@ uint32_t *recuperer_versions_fichier(struct hache_entree *table, uint32_t index)
     return versions;
 }
 
-uint32_t *supprimer_bloc(struct hache_entree *table, uint32_t index) {
+void supprimer_bloc(struct hache_entree *table, uint32_t index) {
     table[index].premier = index;
     table[index].suivant = FIN_CHAINE;
     table[index].longueur = BLOC_LIBRE;
     table[index].type = TYPE_VIDE;
     memset(table[index].obj, 0, ESPACE_MAX);
-    return 0;
 }
 
 uint32_t supprimer_versions_fichier(const char *nom_table, struct hache_entree *table, const char *nom_fichier, const uint32_t hashcode, const uint32_t b) {
@@ -249,4 +248,24 @@ uint32_t supprimer_versions_fichier(const char *nom_table, struct hache_entree *
     } while (i != hash);
 
     return premier_supprimer;
+}
+
+void deplacer_bloc(struct hache_entree *table, const uint32_t hashcode, uint32_t b) {
+    uint32_t index = hashcode;
+    do {
+        if (table[index].longueur != BLOC_LIBRE) {
+            uint32_t premier = table[index].premier;
+            if (table[premier].longueur == BLOC_LIBRE) {
+                table[premier].premier = table[index].premier;
+                table[premier].suivant = table[index].suivant;
+                table[premier].longueur = table[index].longueur;
+                table[premier].type = table[index].type;
+                memcpy(table[premier].obj, table[index].obj, ESPACE_MAX);
+
+                supprimer_bloc(table, index);
+            }
+        }
+
+        index = (index + 1) % b;
+    } while(index != hashcode);
 }
