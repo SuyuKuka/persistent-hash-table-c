@@ -27,7 +27,7 @@ int insertfile_cmd(const char *nom_table, const char *nom_fichier);
 
 int lookup_cmd();
 
-int deletehash_cmd();
+int deletehash_cmd(const char *nom_table, const uint32_t hashcode);
 
 int delete_cmd(const char *nom_table, const char *chaine);
 
