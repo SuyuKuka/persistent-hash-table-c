@@ -251,7 +251,7 @@ int deletehash_cmd(const char *nom_table, const uint32_t hashcode) {
         index = (index + 1) % t.b;
     } while(hashcode != index);
 
-    // Deplacer bloc
+    deplacer_bloc(t.table, hashcode, t.b);
 
     close_table(&t);
     return 0;
