@@ -9,7 +9,9 @@ int handle_make(int argc, char *argv[]) {
         return EXIT_FAILURE;
     }
 
-    make_cmd(argv[2], atoi(argv[4]));
+    if (make_cmd(argv[2], atoi(argv[4])) < 0) {
+        return EXIT_FAILURE;
+    }
     return EXIT_SUCCESS;
 }
 
@@ -19,7 +21,9 @@ int handle_free(int argc, char *argv[]) {
         return EXIT_FAILURE;
     }
 
-    free_cmd(argv[2]);
+    if (free_cmd(argv[2]) < 0) {
+        return EXIT_FAILURE;
+    }
     return EXIT_SUCCESS;
 }
 
@@ -48,7 +52,7 @@ int handle_insertstring(int argc, char *argv[]) {
         }
     }
 
-    if (insertstring_cmd(argv[2], chaine) == -1) {
+    if (insertstring_cmd(argv[2], chaine) < 0) {
         free(chaine);
         return EXIT_FAILURE;
     }
@@ -62,21 +66,27 @@ int handle_insertfile(int argc, char *argv[]) {
         return EXIT_FAILURE;
     }
 
-    insertfile_cmd(argv[2], argv[4]);
+    if (insertfile_cmd(argv[2], argv[4]) < 0) {
+        return EXIT_FAILURE;
+    }
     return EXIT_SUCCESS;
 }
 
 int handle_lookup(int argc, char *argv[]) {
     (void)argc;
     (void)argv;
-    lookup_cmd();
+    if (lookup_cmd() < 0) {
+        return EXIT_FAILURE;
+    }
     return EXIT_SUCCESS;
 }
 
 int handle_deletehash(int argc, char *argv[]) {
     (void)argc;
     (void)argv;
-    deletehash_cmd();
+    if (deletehash_cmd() < 0) {
+        return EXIT_FAILURE;
+    }
     return EXIT_SUCCESS;
 }
 
@@ -106,7 +116,7 @@ int handle_delete(int argc, char *argv[]) {
         }
     }
 
-    if (delete_cmd(argv[2], chaine) == -1) {
+    if (delete_cmd(argv[2], chaine) < 0) {
         free(chaine);
         return EXIT_FAILURE;
     }
@@ -116,30 +126,41 @@ int handle_delete(int argc, char *argv[]) {
 }
 
 int handle_check(int argc, char *argv[]) {
-    (void)argc;
-    (void)argv;
-    check_cmd();
+    if (argc != 4) {
+        fprintf(stderr, "[ERREUR] Utilisation: %s check table slowns\n", argv[0]);
+        return EXIT_FAILURE;
+    }
+
+    if (check_cmd(argv[2]) < 0) {
+        return EXIT_FAILURE;
+    }
     return EXIT_SUCCESS;
 }
 
 int handle_extend(int argc, char *argv[]) {
     (void)argc;
     (void)argv;
-    extend_cmd();
+    if (extend_cmd() < 0) {
+        return EXIT_FAILURE;
+    }
     return EXIT_SUCCESS;
 }
 
 int handle_shrink(int argc, char *argv[]) {
     (void)argc;
     (void)argv;
-    shrink_cmd();
+    if (shrink_cmd() < 0) {
+        return EXIT_FAILURE;
+    }
     return EXIT_SUCCESS;
 }
 
 int handle_ajust(int argc, char *argv[]) {
     (void)argc;
     (void)argv;
-    ajust_cmd();
+    if (ajust_cmd() < 0) {
+        return EXIT_FAILURE;
+    }
     return EXIT_SUCCESS;
 }
 
@@ -178,6 +199,9 @@ int main(int argc, char *argv[]) {
         return EXIT_FAILURE;
     }
 
-    print_bloc(argv[2]);
+    if (print_bloc(argv[2]) < 0) {
+        return EXIT_FAILURE;
+    }
+    
     return handle;
 }
