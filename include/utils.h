@@ -26,10 +26,12 @@ char *recuperer_chaine_complete(struct hache_entree *table, uint32_t index);
 
 uint32_t *recuperer_versions_fichier(struct hache_entree *table, uint32_t index);
 
+void mettre_a_jour_versions_fichiers(struct hache_entree *table, uint32_t *versions, const uint32_t nb_elements, const uint32_t i);
+
 void supprimer_bloc(struct hache_entree *table, uint32_t index);
 
 uint32_t supprimer_versions_fichier(const char *nom_table, struct hache_entree *table, const char *nom_fichier, const uint32_t hashcode, const uint32_t b);
 
-void deplacer_bloc(struct hache_entree *table, const uint32_t hashcode, uint32_t b);
+uint32_t deplacer_bloc(const char *nom_table, struct hache_entree *table, const uint32_t hashcode, uint32_t b);
 
 #endif
