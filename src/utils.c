@@ -351,3 +351,24 @@ uint32_t deplacer_bloc(const char *nom_table, struct hache_entree *table, const 
 
     return 0;
 }
+
+uint32_t supprimer_nom_fichier(struct hache_entree *table, uint32_t index) {
+    uint32_t nb_elements = (table[index].longueur - (strlen(table[index].obj) + 1)) / sizeof(uint32_t);
+    uint32_t *versions = recuperer_versions_fichier(table, index);
+    if (versions == NULL) {
+        return BLOC_ERREUR;
+    }
+
+    for (uint32_t k = 0; k < nb_elements; k++) {
+        uint32_t i = versions[k];
+        while (i != FIN_CHAINE) {
+            uint32_t j = table[i].suivant;
+            supprimer_bloc(table, i); 
+            i = j;
+        }
+    }
+    
+    supprimer_bloc(table, index);
+    free(versions);
+    return 0;
+}
