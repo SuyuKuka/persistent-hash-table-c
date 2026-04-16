@@ -266,82 +266,63 @@ int delete_cmd(const char *nom_table, const char *chaine) {
         return -1;
     }
 
-    size_t taille_chaine = strlen(chaine);
-    int bloc = -1;
+    size_t taille = strlen(chaine);
 
-    for (uint32_t i = 0; i < t.b; i++) {
-        if (t.table[i].longueur == BLOC_LIBRE) {
-            continue;
+    int bloc_nom = recherche_bloc(
+        nom_table,
+        t.table,
+        chaine,
+        taille,
+        TYPE_NOM_FICHIER,
+        t.b
+    );
+
+    if (bloc_nom >= 0) {
+        size_t taille_nom;
+        char *donnee = reconstruire_donnee(t.table, bloc_nom, &taille_nom);
+        if (donnee == NULL) {
+            fprintf(stderr, "[ERREUR] delete: nom_fichier corrompu.\n");
+            close_table(&t);
+            return -1;
         }
 
-        if (t.table[i].longueur != taille_chaine) {
-            continue;
+        size_t pos = strlen(donnee) + 1;
+
+        while (pos + sizeof(uint32_t) <= taille_nom) {
+            uint32_t hc;
+            memcpy(&hc, donnee + pos, sizeof(uint32_t));
+
+            supprimer_chaine(t.table, hc);
+
+            pos += sizeof(uint32_t);
         }
 
-        size_t offset = 0;
-        uint32_t courant = i;
-        int correspond = 1;
+        free(donnee);
 
-        while (1) {
-            size_t reste = taille_chaine - offset;
-            size_t a_comparer;
+        supprimer_chaine(t.table, bloc_nom);
 
-            if (reste > ESPACE_MAX) {
-                a_comparer = ESPACE_MAX;
-            } else {
-                a_comparer = reste;
-            }
-
-            if (memcmp(t.table[courant].obj, chaine + offset, a_comparer) != 0) {
-                correspond = 0;
-                break;
-            }
-
-            offset += a_comparer;
-
-            if (offset >= taille_chaine) {
-                break;
-            }
-
-            if (t.table[courant].suivant == FIN_CHAINE) {
-                correspond = 0;
-                break;
-            }
-
-            courant = t.table[courant].suivant;
-        }
-
-        if (correspond) {
-            bloc = i;
-            break;
-        }
-    }
-
-    if (bloc < 0) {
-        fprintf(stderr, "[ALERTE] delete: la chaine est introuvable.\n");
         close_table(&t);
-        return -1;
+        return 0;
     }
 
-    uint32_t courant = (uint32_t)bloc;
+    int bloc_str = recherche_bloc(
+        nom_table,
+        t.table,
+        chaine,
+        taille,
+        TYPE_CHAINE,
+        t.b
+    );
 
-    while (1) {
-        uint32_t suivant = t.table[courant].suivant;
-
-        t.table[courant].premier = courant;
-        t.table[courant].suivant = FIN_CHAINE;
-        t.table[courant].longueur = BLOC_LIBRE;
-        memset(t.table[courant].obj, 0, ESPACE_MAX);
-
-        if (suivant == FIN_CHAINE) {
-            break;
-        }
-
-        courant = suivant;
+    if (bloc_str >= 0) {
+        supprimer_chaine(t.table, bloc_str);
+        close_table(&t);
+        return 0;
     }
 
+    fprintf(stderr, "[ALERTE] delete: entree introuvable.\n");
     close_table(&t);
-    return 0;
+    return -1;
 }
 
 int check_cmd(const char *nom_table) {

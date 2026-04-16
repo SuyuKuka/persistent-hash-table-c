@@ -351,3 +351,19 @@ uint32_t deplacer_bloc(const char *nom_table, struct hache_entree *table, const 
 
     return 0;
 }
+
+static void supprimer_chaine(struct hache_entree *table, uint32_t debut) {
+    uint32_t courant = debut;
+
+    while (courant != FIN_CHAINE && table[courant].longueur != BLOC_LIBRE) {
+        uint32_t suivant = table[courant].suivant;
+
+        table[courant].premier = courant;
+        table[courant].suivant = FIN_CHAINE;
+        table[courant].longueur = BLOC_LIBRE;
+        table[courant].type = TYPE_VIDE;
+        memset(table[courant].obj, 0, ESPACE_MAX);
+
+        courant = suivant;
+    }
+}
