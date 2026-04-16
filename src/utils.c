@@ -352,49 +352,23 @@ uint32_t deplacer_bloc(const char *nom_table, struct hache_entree *table, const 
     return 0;
 }
 
-void supprimer_chaine(struct hache_entree *table, uint32_t debut) {
-    uint32_t courant = debut;
-
-    while (courant != FIN_CHAINE && table[courant].longueur != BLOC_LIBRE) {
-        uint32_t suivant = table[courant].suivant;
-
-        table[courant].premier = courant;
-        table[courant].suivant = FIN_CHAINE;
-        table[courant].longueur = BLOC_LIBRE;
-        table[courant].type = TYPE_VIDE;
-        memset(table[courant].obj, 0, ESPACE_MAX);
-
-        courant = suivant;
-    }
-}
-
-char *reconstruire_donnee(struct hache_entree *table, uint32_t debut, size_t *taille) {
-    *taille = table[debut].longueur;
-
-    char *donnee = malloc(*taille == 0 ? 1 : *taille);
-    if (donnee == NULL) {
-        return NULL;
+uint32_t supprimer_nom_fichier(struct hache_entree *table, uint32_t index) {
+    uint32_t nb_elements = (table[index].longueur - (strlen(table[index].obj) + 1)) / sizeof(uint32_t);
+    uint32_t *versions = recuperer_versions_fichier(table, index);
+    if (versions == NULL) {
+        return BLOC_ERREUR;
     }
 
-    size_t offset = 0;
-    uint32_t courant = debut;
-    size_t reste = *taille;
-
-    while (reste > 0) {
-        size_t a_copier = (reste > ESPACE_MAX) ? ESPACE_MAX : reste;
-
-        memcpy(donnee + offset, table[courant].obj, a_copier);
-        offset += a_copier;
-        reste -= a_copier;
-
-        if (reste > 0) {
-            if (table[courant].suivant == FIN_CHAINE) {
-                free(donnee);
-                return NULL;
-            }
-            courant = table[courant].suivant;
+    for (uint32_t k = 0; k < nb_elements; k++) {
+        uint32_t i = versions[k];
+        while (i != FIN_CHAINE) {
+            uint32_t j = table[i].suivant;
+            supprimer_bloc(table, i); 
+            i = j;
         }
     }
-
-    return donnee;
+    
+    supprimer_bloc(table, index);
+    free(versions);
+    return 0;
 }

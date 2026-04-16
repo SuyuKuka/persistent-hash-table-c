@@ -227,24 +227,10 @@ int deletehash_cmd(const char *nom_table, const uint32_t hashcode) {
 
                 supprimer_bloc(t.table, index);
             } else if (t.table[index].type == TYPE_NOM_FICHIER) {
-                uint32_t nb_elements = (t.table[index].longueur - strlen(t.table[index].obj) + 1) / sizeof(uint32_t);
-                uint32_t *versions = recuperer_versions_fichier(t.table, index);
-                if (versions == NULL) {
+                if (supprimer_nom_fichier(t.table, index) == BLOC_ERREUR) {
                     close_table(&t);
                     return -1;
                 }
-
-                for (uint32_t k = 0; k < nb_elements; k++) {
-                    uint32_t i = versions[k];
-                    while (i != FIN_CHAINE) {
-                        uint32_t j = t.table[i].suivant;
-                        supprimer_bloc(t.table, i); 
-                        i = j;
-                    }
-                }
-                
-                supprimer_bloc(t.table, index);
-                free(versions);
             }
         }
 
@@ -266,63 +252,41 @@ int delete_cmd(const char *nom_table, const char *chaine) {
         return -1;
     }
 
+    uint32_t supprimer = 1;
     size_t taille = strlen(chaine);
-
-    int bloc_nom = recherche_bloc(
-        nom_table,
-        t.table,
-        chaine,
-        taille,
-        TYPE_NOM_FICHIER,
-        t.b
-    );
-
-    if (bloc_nom >= 0) {
-        size_t taille_nom;
-        char *donnee = reconstruire_donnee(t.table, bloc_nom, &taille_nom);
-        if (donnee == NULL) {
-            fprintf(stderr, "[ERREUR] delete: nom_fichier corrompu.\n");
+    uint32_t bloc_nom = recherche_bloc(nom_table, t.table, chaine, taille, TYPE_NOM_FICHIER, t.b);
+    if (bloc_nom != BLOC_ERREUR) {
+        if (supprimer_nom_fichier(t.table, bloc_nom) == BLOC_ERREUR) {
             close_table(&t);
             return -1;
         }
 
-        size_t pos = strlen(donnee) + 1;
-
-        while (pos + sizeof(uint32_t) <= taille_nom) {
-            uint32_t hc;
-            memcpy(&hc, donnee + pos, sizeof(uint32_t));
-
-            supprimer_chaine(t.table, hc);
-
-            pos += sizeof(uint32_t);
+        if (deplacer_bloc(nom_table, t.table, bloc_nom, t.b) == BLOC_ERREUR) {
+            close_table(&t);
+            return -1;
         }
 
-        free(donnee);
-
-        supprimer_chaine(t.table, bloc_nom);
-
-        close_table(&t);
-        return 0;
+        supprimer = 0;
     }
 
-    int bloc_str = recherche_bloc(
-        nom_table,
-        t.table,
-        chaine,
-        taille,
-        TYPE_CHAINE,
-        t.b
-    );
+    uint32_t bloc_str = recherche_bloc(nom_table, t.table, chaine, taille, TYPE_CHAINE, t.b);
+    if (bloc_str != BLOC_ERREUR) {
+        supprimer_bloc(t.table, bloc_str);
+        if (deplacer_bloc(nom_table, t.table, bloc_str, t.b) == BLOC_ERREUR) {
+            close_table(&t);
+            return -1;
+        }
 
-    if (bloc_str >= 0) {
-        supprimer_chaine(t.table, bloc_str);
-        close_table(&t);
-        return 0;
+        supprimer = 0;
     }
 
-    fprintf(stderr, "[ALERTE] delete: entree introuvable.\n");
     close_table(&t);
-    return -1;
+    if (supprimer) {
+        fprintf(stderr, "[ERREUR] delete: entree introuvable.\n");
+        return -1;
+    }
+
+    return 0;
 }
 
 int check_cmd(const char *nom_table) {
