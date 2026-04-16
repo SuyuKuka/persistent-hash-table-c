@@ -457,17 +457,40 @@ int check_cmd(const char *nom_table) {
     return 0;
 }
 
-int extend_cmd() {
-    
+int extend_cmd(const char *nom_table) {
+    (void)nom_table;
     return 0;
 }
 
-int shrink_cmd() {
-
+int shrink_cmd(const char *nom_table) {
+    (void)nom_table;
     return 0;
 }
 
-int ajust_cmd(){
+int ajust_cmd(const char *nom_table) {
+    struct table_entree t;
+    if (open_table(nom_table, &t, O_RDONLY, PROT_READ) < 0) {
+        return -1;
+    }
+
+    uint32_t bloc_libre = 0;
+    for (uint32_t i = 0; i < t.b; i++) {
+        if (t.table[i].longueur == BLOC_LIBRE) {
+            bloc_libre++;
+        }
+    }
     
+    close_table(&t);
+    double taux_remplissage = ((double)(t.b - bloc_libre) / (double)t.b) * 100.0;
+    if (taux_remplissage > 70.0) {
+        if (extend_cmd(nom_table) < 0) {
+            return -1;
+        }
+    } else if (taux_remplissage < 10.0) {
+        if (shrink_cmd(nom_table) < 0) {
+            return -1;
+        }
+    } 
+
     return 0;
 }
