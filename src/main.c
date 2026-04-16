@@ -3,6 +3,29 @@
 #include <string.h>
 #include "cmd.h"
 
+char *concatener_args(int argc, char *argv[]) {
+    size_t taille_chaine = 0;
+    for (int i = 4; i < argc; i++) {
+        taille_chaine += strlen(argv[i]) + 1;
+    }
+
+    char *chaine = malloc(taille_chaine);
+    if (chaine == NULL) {
+        perror("[ERREUR] malloc");
+        return NULL;
+    }
+
+    chaine[0] = '\0';
+    for (int i = 4; i < argc; i++) {
+        strcat(chaine, argv[i]);
+        if (i < argc - 1) {
+            strcat(chaine, " ");
+        }
+    }
+
+    return chaine;
+}
+
 int handle_make(int argc, char *argv[]) {
     if (argc != 5) {
         fprintf(stderr, "[ERREUR] Utilisation: %s make table slowns b\n", argv[0]);
@@ -33,29 +56,16 @@ int handle_insertstring(int argc, char *argv[]) {
         return EXIT_FAILURE;
     }
 
-    size_t taille_chaine = 0;
-    for (int i = 4; i < argc; i++) {
-        taille_chaine += strlen(argv[i]) + 1;
-    }
-
-    char *chaine = malloc(taille_chaine);
+    char *chaine = concatener_args(argc, argv);
     if (chaine == NULL) {
-        perror("[ERREUR] malloc");
         return EXIT_FAILURE;
     }
     
-    chaine[0] = '\0';
-    for (int i = 4; i < argc; i++) {
-        strcat(chaine, argv[i]);
-        if (i < argc - 1) {
-            strcat(chaine, " ");
-        }
-    }
-
     if (insertstring_cmd(argv[2], chaine) < 0) {
         free(chaine);
         return EXIT_FAILURE;
     }
+
     free(chaine);
     return EXIT_SUCCESS;
 }
@@ -100,23 +110,9 @@ int handle_delete(int argc, char *argv[]) {
         return EXIT_FAILURE;
     }
 
-    size_t taille_chaine = 0;
-    for (int i = 4; i < argc; i++) {
-        taille_chaine += strlen(argv[i]) + 1;
-    }
-
-    char *chaine = malloc(taille_chaine);
+    char *chaine = concatener_args(argc, argv);
     if (chaine == NULL) {
-        perror("[ERREUR] malloc");
         return EXIT_FAILURE;
-    }
-
-    chaine[0] = '\0';
-    for (int i = 4; i < argc; i++) {
-        strcat(chaine, argv[i]);
-        if (i < argc - 1) {
-            strcat(chaine, " ");
-        }
     }
 
     if (delete_cmd(argv[2], chaine) < 0) {
