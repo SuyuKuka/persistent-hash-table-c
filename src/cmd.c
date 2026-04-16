@@ -227,24 +227,10 @@ int deletehash_cmd(const char *nom_table, const uint32_t hashcode) {
 
                 supprimer_bloc(t.table, index);
             } else if (t.table[index].type == TYPE_NOM_FICHIER) {
-                uint32_t nb_elements = (t.table[index].longueur - strlen(t.table[index].obj) + 1) / sizeof(uint32_t);
-                uint32_t *versions = recuperer_versions_fichier(t.table, index);
-                if (versions == NULL) {
+                if (supprimer_nom_fichier(t.table, index) == BLOC_ERREUR) {
                     close_table(&t);
                     return -1;
                 }
-
-                for (uint32_t k = 0; k < nb_elements; k++) {
-                    uint32_t i = versions[k];
-                    while (i != FIN_CHAINE) {
-                        uint32_t j = t.table[i].suivant;
-                        supprimer_bloc(t.table, i); 
-                        i = j;
-                    }
-                }
-                
-                supprimer_bloc(t.table, index);
-                free(versions);
             }
         }
 
@@ -266,81 +252,40 @@ int delete_cmd(const char *nom_table, const char *chaine) {
         return -1;
     }
 
-    size_t taille_chaine = strlen(chaine);
-    int bloc = -1;
-
-    for (uint32_t i = 0; i < t.b; i++) {
-        if (t.table[i].longueur == BLOC_LIBRE) {
-            continue;
+    uint32_t supprimer = 1;
+    size_t taille = strlen(chaine);
+    uint32_t bloc_nom = recherche_bloc(nom_table, t.table, chaine, taille, TYPE_NOM_FICHIER, t.b);
+    if (bloc_nom != BLOC_ERREUR) {
+        if (supprimer_nom_fichier(t.table, bloc_nom) == BLOC_ERREUR) {
+            close_table(&t);
+            return -1;
         }
 
-        if (t.table[i].longueur != taille_chaine) {
-            continue;
+        if (deplacer_bloc(nom_table, t.table, bloc_nom, t.b) == BLOC_ERREUR) {
+            close_table(&t);
+            return -1;
         }
 
-        size_t offset = 0;
-        uint32_t courant = i;
-        int correspond = 1;
-
-        while (1) {
-            size_t reste = taille_chaine - offset;
-            size_t a_comparer;
-
-            if (reste > ESPACE_MAX) {
-                a_comparer = ESPACE_MAX;
-            } else {
-                a_comparer = reste;
-            }
-
-            if (memcmp(t.table[courant].obj, chaine + offset, a_comparer) != 0) {
-                correspond = 0;
-                break;
-            }
-
-            offset += a_comparer;
-
-            if (offset >= taille_chaine) {
-                break;
-            }
-
-            if (t.table[courant].suivant == FIN_CHAINE) {
-                correspond = 0;
-                break;
-            }
-
-            courant = t.table[courant].suivant;
-        }
-
-        if (correspond) {
-            bloc = i;
-            break;
-        }
+        supprimer = 0;
     }
 
-    if (bloc < 0) {
-        fprintf(stderr, "[ALERTE] delete: la chaine est introuvable.\n");
-        close_table(&t);
-        return -1;
-    }
-
-    uint32_t courant = (uint32_t)bloc;
-
-    while (1) {
-        uint32_t suivant = t.table[courant].suivant;
-
-        t.table[courant].premier = courant;
-        t.table[courant].suivant = FIN_CHAINE;
-        t.table[courant].longueur = BLOC_LIBRE;
-        memset(t.table[courant].obj, 0, ESPACE_MAX);
-
-        if (suivant == FIN_CHAINE) {
-            break;
+    uint32_t bloc_str = recherche_bloc(nom_table, t.table, chaine, taille, TYPE_CHAINE, t.b);
+    if (bloc_str != BLOC_ERREUR) {
+        supprimer_bloc(t.table, bloc_str);
+        if (deplacer_bloc(nom_table, t.table, bloc_str, t.b) == BLOC_ERREUR) {
+            close_table(&t);
+            return -1;
         }
 
-        courant = suivant;
+        supprimer = 0;
     }
 
     close_table(&t);
+    if (supprimer) {
+        fprintf(stderr, "[ERREUR] delete: entree introuvable.\n");
+        return -1;
+    }
+
     return 0;
 }
 

@@ -34,4 +34,6 @@ uint32_t supprimer_versions_fichier(const char *nom_table, struct hache_entree *
 
 uint32_t deplacer_bloc(const char *nom_table, struct hache_entree *table, const uint32_t hashcode, uint32_t b);
 
+uint32_t supprimer_nom_fichier(struct hache_entree *table, uint32_t index);
+
 #endif
