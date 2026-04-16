@@ -352,7 +352,7 @@ uint32_t deplacer_bloc(const char *nom_table, struct hache_entree *table, const 
     return 0;
 }
 
-static void supprimer_chaine(struct hache_entree *table, uint32_t debut) {
+void supprimer_chaine(struct hache_entree *table, uint32_t debut) {
     uint32_t courant = debut;
 
     while (courant != FIN_CHAINE && table[courant].longueur != BLOC_LIBRE) {
@@ -366,4 +366,35 @@ static void supprimer_chaine(struct hache_entree *table, uint32_t debut) {
 
         courant = suivant;
     }
+}
+
+char *reconstruire_donnee(struct hache_entree *table, uint32_t debut, size_t *taille) {
+    *taille = table[debut].longueur;
+
+    char *donnee = malloc(*taille == 0 ? 1 : *taille);
+    if (donnee == NULL) {
+        return NULL;
+    }
+
+    size_t offset = 0;
+    uint32_t courant = debut;
+    size_t reste = *taille;
+
+    while (reste > 0) {
+        size_t a_copier = (reste > ESPACE_MAX) ? ESPACE_MAX : reste;
+
+        memcpy(donnee + offset, table[courant].obj, a_copier);
+        offset += a_copier;
+        reste -= a_copier;
+
+        if (reste > 0) {
+            if (table[courant].suivant == FIN_CHAINE) {
+                free(donnee);
+                return NULL;
+            }
+            courant = table[courant].suivant;
+        }
+    }
+
+    return donnee;
 }
