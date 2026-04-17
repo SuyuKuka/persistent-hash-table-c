@@ -14,7 +14,7 @@
 #define BLOC_LIBRE 0xFFFFFFFFUL
 #define BLOC_ERREUR 0xFFFFFFFFUL
 #define FIN_CHAINE 0xFFFFFFFFUL
-#define ESPACE_MAX 1008
+#define ESPACE_MAX 1004
 
 enum type_donnee {
     TYPE_VIDE = 0,
@@ -25,6 +25,7 @@ enum type_donnee {
 
 struct hache_entree {
     uint32_t premier; // numero du premier bloc de la liste chainée
+    uint32_t precedent; // numero du bloc precedent de la liste chainee
     uint32_t suivant; // numero du bloc suivant de la liste chainée
     uint32_t longueur; // longueur, en octets, de l’objet stocké.
     uint32_t type; // le type de donnee qu'on insere (chaine, fichier...)
@@ -39,7 +40,7 @@ uint32_t recherche_bloc(const char *nom_table, struct hache_entree *table, const
 
 uint32_t bloc_suffisant(struct hache_entree *table, size_t taille_chaine, const uint32_t b);
 
-int bloc_suffisant_fichier(const char *nom_table, struct hache_entree *table, const char *nom_fichier, uint32_t b);
+uint32_t bloc_suffisant_fichier(const char *nom_table, struct hache_entree *table, const char *nom_fichier, uint32_t b);
 
 uint32_t get_b(int fd);
 
