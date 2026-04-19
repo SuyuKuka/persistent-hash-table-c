@@ -248,7 +248,7 @@ int deletehash_cmd(const char *nom_table, const uint32_t hashcode) {
         if (bloc_supprimer == index) {
             break;
         }
-        
+
         bloc_supprimer = precedent;
     }
 
@@ -293,24 +293,30 @@ int check_cmd(const char *nom_table) {
             uint32_t hash = h(nom_table, chaine, t.table[i].longueur, t.b);
             if (hash == BLOC_ERREUR) {
                 free(premiere_donnee);
+                free(chaine);
                 close_table(&t);
                 return BLOC_ERREUR;
             }
 
-            uint32_t j = i;
-            while (j != FIN_CHAINE) {
-                if (hash != t.table[j].premier) {
-                    fprintf(stderr, "[ERREUR] check: le bloc %u est corrompu, le hash du contenu est différent de premier.\n", j);
-                    free(chaine);
-                    free(premiere_donnee);
-                    close_table(&t);
-                    return -1;
-                } 
+            free(chaine);
 
-                j = t.table[j].suivant;
+            uint32_t index = t.table[hash].premier;
+            int verif = 0;
+            while (index != FIN_CHAINE) {
+                if (index == i) {
+                    verif = 1; 
+                    break;
+                }
+
+                index = t.table[index].suivant;
             }
 
-            free(chaine);
+            if (verif == 0) {
+                fprintf(stderr, "[ERREUR] check: le bloc %u est corrompu, le hash du contenu est différent de premier.\n", i);
+                free(premiere_donnee);
+                close_table(&t);
+                return -1;
+            }
         } else {
             char *nom_fichier = t.table[i].obj;
             uint32_t hash_nom_fichier = h(nom_table, nom_fichier, strlen(nom_fichier), t.b);
@@ -320,8 +326,20 @@ int check_cmd(const char *nom_table) {
                 return BLOC_ERREUR;
             }
 
-            if (hash_nom_fichier != t.table[i].premier) {
-                fprintf(stderr, "[ERREUR] check: le bloc %u est corrompu (%s): le hash du contenu est différent de premier.\n", i, nom_fichier);
+            uint32_t index = t.table[hash_nom_fichier].premier;
+            int verif = 0;
+
+            while (index != FIN_CHAINE) {
+                if (index == i) {
+                    verif = 1;
+                    break;
+                }
+                
+                index = t.table[index].suivant;
+            }
+
+            if (verif == 0) {
+                fprintf(stderr, "[ERREUR] check: le bloc %u est corrompu (%s): il n'est pas lié à la boîte aux lettres %u.\n", i, nom_fichier, hash_nom_fichier);
                 free(premiere_donnee);
                 close_table(&t);
                 return -1;
@@ -334,7 +352,7 @@ int check_cmd(const char *nom_table) {
                 close_table(&t);
                 return -1;
             }
-                
+
             uint32_t *versions = recuperer_versions_fichier(t.table, i);
             if (versions == NULL) {
                 perror("malloc (check)");
