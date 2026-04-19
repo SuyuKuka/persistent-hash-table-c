@@ -58,12 +58,17 @@ uint32_t insert_nom_fichier(struct table_entree *t, const char *donnee, const in
     memcpy(t->table[nouveau_bloc].obj, donnee, sizeof(uint32_t));
     
     t->table[dernier_bloc].suivant = nouveau_bloc;
+    if (t->table[nouveau_bloc].suivant != FIN_CHAINE) {
+        t->table[t->table[nouveau_bloc].suivant].precedent = nouveau_bloc;
+    }
+
     uint32_t longueur_maj = premier_bloc;
     while (longueur_maj != dernier_bloc) {
         t->table[longueur_maj].longueur += sizeof(uint32_t);
         longueur_maj = t->table[longueur_maj].suivant;
     }
 
+    t->table[dernier_bloc].longueur += sizeof(uint32_t);
     return 0;
 }
 
@@ -107,10 +112,13 @@ uint32_t insertdata(const char *nom_table, const char *cle, size_t taille_cle, s
         }
 
         if (index_premiere_donnee == BLOC_LIBRE) {
-            if ((t->table[index].premier == BLOC_LIBRE) || (t->table[index].premier == index && t->table[index].type == TYPE_VIDE)) {
+            if ((t->table[index].premier == BLOC_LIBRE) || (t->table[index].premier == index && t->table[index].longueur == BLOC_LIBRE)) {
                 t->table[index].premier = index_actuel;
-                t->table[index_actuel].premier = index;
                 index_precedent = FIN_CHAINE;
+
+                if (index_actuel != index && t->table[index_actuel].premier == index_actuel) {
+                    t->table[index_actuel].premier = BLOC_LIBRE;
+                }
             } else {
                 uint32_t dernier = t->table[index].premier;
                 while (t->table[dernier].suivant != FIN_CHAINE) {
@@ -240,7 +248,43 @@ void mettre_a_jour_versions_fichiers(struct hache_entree *table, uint32_t *versi
     }
 }
 
-void supprimer_bloc(struct hache_entree *table, uint32_t index) {
+void supprimer_bloc(struct hache_entree *table, uint32_t index, const uint32_t b) {
+    uint32_t precedent = table[index].precedent;
+    uint32_t suivant = table[index].suivant;
+    uint32_t premier = table[index].premier;
+
+    if (precedent != FIN_CHAINE) {
+        table[precedent].suivant = suivant;
+    }
+
+    if (suivant != FIN_CHAINE) {
+        table[suivant].precedent = precedent;
+    }
+
+    if (precedent == FIN_CHAINE) { 
+        uint32_t hash_origine = index;
+        for (uint32_t h = 0; h < b; h++) {
+            if (table[h].premier == index) {
+                hash_origine = h;
+                break;
+            }
+        }
+
+        if (suivant == FIN_CHAINE) {
+            if (table[hash_origine].type != TYPE_VIDE && hash_origine != index) {
+                 table[hash_origine].premier = BLOC_LIBRE;
+            } else {
+                 table[hash_origine].premier = hash_origine;
+            }
+        } else {
+            table[hash_origine].premier = suivant;
+        }
+    }
+
+    if (premier == index || premier == BLOC_LIBRE) {
+        table[index].premier = index;
+    }
+
     table[index].precedent = FIN_CHAINE;
     table[index].suivant = FIN_CHAINE;
     table[index].longueur = BLOC_LIBRE;
@@ -248,11 +292,108 @@ void supprimer_bloc(struct hache_entree *table, uint32_t index) {
     memset(table[index].obj, 0, ESPACE_MAX);
 }
 
+void supprimer_par_derriere(struct hache_entree *table, uint32_t index, const uint32_t b) {
+    uint32_t dernier_bloc = index;
+    while (table[dernier_bloc].suivant != FIN_CHAINE && table[dernier_bloc].longueur > ESPACE_MAX) {
+        dernier_bloc = table[dernier_bloc].suivant;
+    }
+
+    uint32_t bloc_supprimer = dernier_bloc;
+    while (bloc_supprimer != FIN_CHAINE) {
+        uint32_t precedent = table[bloc_supprimer].precedent;
+        supprimer_bloc(table, bloc_supprimer, b);
+        if (bloc_supprimer == index) {
+            break;
+        }
+
+        bloc_supprimer = precedent;
+    }
+}
+
+uint32_t supprimer_versions_fichier(const char *nom_table, struct hache_entree *table, uint32_t index, uint32_t b) {
+    char nom_fichier[256];
+    if (sscanf(table[index].obj, "nom:%255[^|]", nom_fichier) != 1) {
+        fprintf(stderr, "[ERREUR] deletehash: fichier corrompu (nom dans metadonnee).\n");
+        return BLOC_ERREUR;
+    }
+
+    uint32_t hash_nom_fichier = h(nom_table, nom_fichier, strlen(nom_fichier), b);
+    uint32_t index_nom_fichier = table[hash_nom_fichier].premier;
+    while (index_nom_fichier != FIN_CHAINE) {
+        if (table[index_nom_fichier].type == TYPE_NOM_FICHIER && memcmp(nom_fichier, table[index_nom_fichier].obj, strlen(nom_fichier)) == 0) {
+            uint32_t nb_elements = (table[index_nom_fichier].longueur - (strlen(table[index_nom_fichier].obj) + 1)) / sizeof(uint32_t);
+            uint32_t *versions = recuperer_versions_fichier(table, index_nom_fichier);
+            if (versions == NULL) {
+                return BLOC_ERREUR;
+            }
+
+            uint32_t pos = BLOC_ERREUR;
+            for (uint32_t k = 0; k < nb_elements; k++) {
+                if (versions[k] == index) {
+                    pos = k;
+                    break;
+                }
+            }
+
+            if (pos != BLOC_ERREUR) {
+                if (nb_elements == 1) {
+                    supprimer_par_derriere(table, index_nom_fichier, b);
+                } else {
+                    for (uint32_t k = pos; k < nb_elements - 1; k++) {
+                        versions[k] = versions[k + 1]; 
+                    }
+                    nb_elements--;
+
+                    mettre_a_jour_versions_fichiers(table, versions, nb_elements, index_nom_fichier);
+
+                    uint32_t maj = index_nom_fichier;
+                    while (maj != FIN_CHAINE) {
+                        table[maj].longueur -= sizeof(uint32_t);
+                        if (table[maj].longueur + sizeof(uint32_t) <= ESPACE_MAX) break;
+                        maj = table[maj].suivant;
+                    }
+                }
+            }
+
+            free(versions);
+            return 0;
+        }
+
+        while (index_nom_fichier != FIN_CHAINE && table[index_nom_fichier].longueur > ESPACE_MAX) {
+            index_nom_fichier = table[index_nom_fichier].suivant;
+        }
+
+        if (index_nom_fichier != FIN_CHAINE) {
+            index_nom_fichier = table[index_nom_fichier].suivant;
+        }
+    }
+
+    fprintf(stderr, "[ERREUR] supprimer_fichier: bloc %s n'a pas ete trouve.", nom_fichier);
+    return BLOC_ERREUR;
+}
+
+uint32_t supprimer_nom_fichier(struct hache_entree *table, uint32_t index, const uint32_t b) {
+    uint32_t nb_elements = (table[index].longueur - (strlen(table[index].obj) + 1)) / sizeof(uint32_t);
+    uint32_t *versions = recuperer_versions_fichier(table, index);
+    if (versions == NULL) {
+        return BLOC_ERREUR;
+    }
+
+    for (uint32_t k = 0; k < nb_elements; k++) {
+        uint32_t i = versions[k];
+        supprimer_par_derriere(table, i, b);
+    }
+
+    free(versions);
+    return 0;
+}
+
 uint32_t deplacer_bloc(const char *nom_table, struct hache_entree *table, const uint32_t b) {
     for (uint32_t i = 0; i < b; i++) {
-        if (table[i].type == TYPE_VIDE && table[i].premier != i && table[i].premier != BLOC_LIBRE) {
+        if (table[i].longueur == BLOC_LIBRE && table[i].premier != i && table[i].premier != BLOC_LIBRE) {
             uint32_t squatter = table[i].premier;
             table[i].premier = i;
+            table[i].precedent = FIN_CHAINE;
             table[i].suivant = table[squatter].suivant;
             table[i].longueur = table[squatter].longueur;
             table[i].type = table[squatter].type;
@@ -279,8 +420,7 @@ uint32_t deplacer_bloc(const char *nom_table, struct hache_entree *table, const 
                         }
 
                         uint32_t modifier = 1;
-                        uint32_t offset = strlen(table[index].obj) + 1;
-                        uint32_t nb_elements = (table[index].longueur - offset) / sizeof(uint32_t);
+                        uint32_t nb_elements = (table[index].longueur - (strlen(table[index].obj) + 1)) / sizeof(uint32_t);
                         for (uint32_t k = 0; k < nb_elements; k++) {
                             if (versions[k] == squatter) {
                                 versions[k] = i;
@@ -290,6 +430,8 @@ uint32_t deplacer_bloc(const char *nom_table, struct hache_entree *table, const 
 
                         if (modifier == 0) {
                             mettre_a_jour_versions_fichiers(table, versions, nb_elements, index);
+                        } else {
+                            fprintf(stderr, "[ERREUR] deplacer_bloc: fichier non trouver\n");
                         }
                         
                         free(versions);
@@ -306,7 +448,15 @@ uint32_t deplacer_bloc(const char *nom_table, struct hache_entree *table, const 
                 }
             }
 
-            supprimer_bloc(table, squatter);
+            if (table[squatter].premier == BLOC_LIBRE) {
+                table[squatter].premier = squatter;
+            }
+            
+            table[squatter].precedent = FIN_CHAINE;
+            table[squatter].suivant = FIN_CHAINE;
+            table[squatter].longueur = BLOC_LIBRE;
+            table[squatter].type = TYPE_VIDE;
+            memset(table[squatter].obj, 0, ESPACE_MAX);
         }
     }
 

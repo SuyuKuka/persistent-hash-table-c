@@ -28,7 +28,13 @@ uint32_t *recuperer_versions_fichier(struct hache_entree *table, uint32_t index)
 
 void mettre_a_jour_versions_fichiers(struct hache_entree *table, uint32_t *versions, const uint32_t nb_elements, const uint32_t i);
 
-void supprimer_bloc(struct hache_entree *table, uint32_t index);
+void supprimer_bloc(struct hache_entree *table, uint32_t index, const uint32_t b);
+
+void supprimer_par_derriere(struct hache_entree *table, uint32_t index, const uint32_t b);
+
+uint32_t supprimer_versions_fichier(const char *nom_table, struct hache_entree *table, uint32_t index, const uint32_t b);
+
+uint32_t supprimer_nom_fichier(struct hache_entree *table, uint32_t index, const uint32_t b);
 
 uint32_t deplacer_bloc(const char *nom_table, struct hache_entree *table, const uint32_t b);
 
