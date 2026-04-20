@@ -1,0 +1,7 @@
+.vscode
+obj
+hachement
+*.sha
+*.cks
+*.txt
+run
