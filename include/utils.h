@@ -36,4 +36,6 @@ uint32_t deplacer_bloc(const char *nom_table, struct hache_entree *table, const 
 
 uint32_t supprimer_nom_fichier(struct hache_entree *table, uint32_t index);
 
+void supprimer_objet_complet(struct hache_entree *table, uint32_t tete);
+
 #endif

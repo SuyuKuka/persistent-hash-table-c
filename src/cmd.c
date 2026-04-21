@@ -252,40 +252,52 @@ int delete_cmd(const char *nom_table, const char *chaine) {
         return -1;
     }
 
-    uint32_t supprimer = 1;
+    int trouve = 0;
     size_t taille = strlen(chaine);
+
+    uint32_t hashcode = h(nom_table, chaine, taille, t.b);
+    if (hashcode == BLOC_ERREUR) {
+        close_table(&t);
+        return -1;
+    }
+
     uint32_t bloc_nom = recherche_bloc(nom_table, t.table, chaine, taille, TYPE_NOM_FICHIER, t.b);
     if (bloc_nom != BLOC_ERREUR) {
-        if (supprimer_nom_fichier(t.table, bloc_nom) == BLOC_ERREUR) {
+        uint32_t nb_elements = (t.table[bloc_nom].longueur - (strlen(t.table[bloc_nom].obj) + 1)) / sizeof(uint32_t);
+        uint32_t *versions = recuperer_versions_fichier(t.table, bloc_nom);
+        if (versions == NULL) {
             close_table(&t);
             return -1;
         }
 
-        if (deplacer_bloc(nom_table, t.table, bloc_nom, t.b) == BLOC_ERREUR) {
-            close_table(&t);
-            return -1;
+        for (uint32_t k = 0; k < nb_elements; k++) {
+            supprimer_objet_complet(t.table, versions[k]);
         }
 
-        supprimer = 0;
+        free(versions);
+
+        supprimer_objet_complet(t.table, bloc_nom);
+        trouve = 1;
     }
 
     uint32_t bloc_str = recherche_bloc(nom_table, t.table, chaine, taille, TYPE_CHAINE, t.b);
     if (bloc_str != BLOC_ERREUR) {
-        supprimer_bloc(t.table, bloc_str);
-        if (deplacer_bloc(nom_table, t.table, bloc_str, t.b) == BLOC_ERREUR) {
-            close_table(&t);
-            return -1;
-        }
-
-        supprimer = 0;
+        supprimer_objet_complet(t.table, bloc_str);
+        trouve = 1;
     }
 
-    close_table(&t);
-    if (supprimer) {
+    if (!trouve) {
         fprintf(stderr, "[ERREUR] delete: entree introuvable.\n");
+        close_table(&t);
         return -1;
     }
 
+    if (deplacer_bloc(nom_table, t.table, hashcode, t.b) == BLOC_ERREUR) {
+        close_table(&t);
+        return -1;
+    }
+
+    close_table(&t);
     return 0;
 }
 
