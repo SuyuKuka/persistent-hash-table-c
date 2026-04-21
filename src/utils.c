@@ -372,3 +372,25 @@ uint32_t supprimer_nom_fichier(struct hache_entree *table, uint32_t index) {
     free(versions);
     return 0;
 }
+
+void supprimer_objet_complet(struct hache_entree *table, uint32_t tete) {
+    if (tete == BLOC_ERREUR || table[tete].longueur == BLOC_LIBRE) {
+        return;
+    }
+
+    uint32_t courant = tete;
+    uint32_t restant = table[tete].longueur;
+
+    while (courant != FIN_CHAINE && restant > 0) {
+        uint32_t suivant = table[courant].suivant;
+        supprimer_bloc(table, courant);
+
+        if (restant > ESPACE_MAX) {
+            restant -= ESPACE_MAX;
+        } else {
+            restant = 0;
+        }
+
+        courant = suivant;
+    }
+}
