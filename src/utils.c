@@ -24,71 +24,91 @@ void close_table(struct table_entree *t) {
     close(t->fd);
 }
 
-uint32_t insert_nom_fichier(struct table_entree *t, const char *donnee, const int premier_bloc) {
+uint32_t insert_nom_fichier(struct table_entree *t, const char *donnee, const int premier_bloc, const long slowns) {
     uint32_t dernier_bloc = premier_bloc;
 
-    while (t->table[dernier_bloc].suivant != FIN_CHAINE && t->table[dernier_bloc].longueur > ESPACE_MAX) {
-        dernier_bloc = t->table[dernier_bloc].suivant;
+    verrouiller_bloc(t->fd, dernier_bloc, F_RDLCK);
+    uint32_t suivant = t->table[dernier_bloc].suivant;
+    uint32_t longueur = t->table[dernier_bloc].longueur;
+    attendre(slowns);
+    deverrouiller_bloc(t->fd, dernier_bloc);
+    while (suivant != FIN_CHAINE && longueur > ESPACE_MAX) {
+        dernier_bloc = suivant;
+        
+        verrouiller_bloc(t->fd, dernier_bloc, F_RDLCK);
+        suivant = t->table[dernier_bloc].suivant;
+        longueur = t->table[dernier_bloc].longueur;
+        attendre(slowns);
+        deverrouiller_bloc(t->fd, dernier_bloc);
     }
 
-    uint32_t longueur = t->table[dernier_bloc].longueur;
     if (longueur + sizeof(uint32_t) <= ESPACE_MAX) {
+        verrouiller_bloc(t->fd, dernier_bloc, F_WRLCK);
         memcpy(t->table[dernier_bloc].obj + longueur, donnee, sizeof(uint32_t));
-
-        uint32_t longueur_maj = premier_bloc;
-        while (longueur_maj != dernier_bloc) {
-            t->table[longueur_maj].longueur += sizeof(uint32_t);
-            longueur_maj = t->table[longueur_maj].suivant;
+        t->table[dernier_bloc].longueur += sizeof(uint32_t);
+        attendre(slowns);
+        deverrouiller_bloc(t->fd, dernier_bloc);
+    } else {
+        uint32_t nouveau_bloc = bloc_libre(t, dernier_bloc, slowns);
+        if (nouveau_bloc == BLOC_ERREUR) {
+            return BLOC_ERREUR;
         }
 
+        verrouiller_bloc(t->fd, dernier_bloc, F_WRLCK);
+        uint32_t ancien_suivant = t->table[dernier_bloc].suivant;
+        t->table[dernier_bloc].suivant = nouveau_bloc;
         t->table[dernier_bloc].longueur += sizeof(uint32_t);
-        return 0;
-    }
+        attendre(slowns);
+        deverrouiller_bloc(t->fd, dernier_bloc);
 
-    uint32_t nouveau_bloc = bloc_libre(t->table, t->b, dernier_bloc);
-    if (nouveau_bloc == BLOC_ERREUR) {
-        return BLOC_ERREUR;
-    }
-
-    t->table[nouveau_bloc].premier = BLOC_LIBRE;
-    t->table[nouveau_bloc].precedent = dernier_bloc;
-    t->table[nouveau_bloc].suivant = t->table[dernier_bloc].suivant;
-    t->table[nouveau_bloc].type = TYPE_NOM_FICHIER;
-    t->table[nouveau_bloc].longueur = sizeof(uint32_t);
-    memcpy(t->table[nouveau_bloc].obj, donnee, sizeof(uint32_t));
-    
-    t->table[dernier_bloc].suivant = nouveau_bloc;
-    if (t->table[nouveau_bloc].suivant != FIN_CHAINE) {
-        t->table[t->table[nouveau_bloc].suivant].precedent = nouveau_bloc;
+        verrouiller_bloc(t->fd, nouveau_bloc, F_WRLCK);
+        t->table[nouveau_bloc].premier = BLOC_LIBRE;
+        t->table[nouveau_bloc].precedent = dernier_bloc;
+        t->table[nouveau_bloc].suivant = t->table[dernier_bloc].suivant;
+        t->table[nouveau_bloc].type = TYPE_NOM_FICHIER;
+        t->table[nouveau_bloc].longueur = sizeof(uint32_t);
+        memcpy(t->table[nouveau_bloc].obj, donnee, sizeof(uint32_t));
+        attendre(slowns);
+        deverrouiller_bloc(t->fd, nouveau_bloc);
+        
+        if (ancien_suivant != FIN_CHAINE) {
+            verrouiller_bloc(t->fd, ancien_suivant, F_WRLCK);
+            t->table[ancien_suivant].precedent = nouveau_bloc;
+            attendre(slowns);
+            deverrouiller_bloc(t->fd, ancien_suivant);
+        }
     }
 
     uint32_t longueur_maj = premier_bloc;
     while (longueur_maj != dernier_bloc) {
+        verrouiller_bloc(t->fd, longueur_maj, F_WRLCK);
         t->table[longueur_maj].longueur += sizeof(uint32_t);
-        longueur_maj = t->table[longueur_maj].suivant;
+        suivant = t->table[longueur_maj].suivant;
+        attendre(slowns);
+        deverrouiller_bloc(t->fd, longueur_maj);
+
+        longueur_maj = suivant;
     }
 
-    t->table[dernier_bloc].longueur += sizeof(uint32_t);
     return 0;
 }
 
-uint32_t handle_data(const char *nom_table, const char *cle, size_t taille_cle, struct table_entree *t, const char *donnee, size_t taille_donnee, uint32_t type_donnee) {
-    uint32_t bloc = recherche_bloc(nom_table, t->table, cle, taille_cle, type_donnee, t->b);
-    if (type_donnee == TYPE_NOM_FICHIER) {
-        if (bloc != BLOC_ERREUR) {
-            return insert_nom_fichier(t, donnee + strlen(donnee) + 1, bloc);
-        }
-    } else {
-        if (bloc != BLOC_ERREUR) {
+uint32_t handle_data(const char *nom_table, const char *cle, size_t taille_cle, struct table_entree *t, const char *donnee, size_t taille_donnee, const uint32_t type_donnee, const long slowns) {
+    uint32_t bloc = recherche_bloc(nom_table, t, cle, taille_cle, type_donnee, slowns);
+    if (bloc != BLOC_ERREUR) {
+        if (type_donnee == TYPE_NOM_FICHIER) {
+            uint32_t insert = insert_nom_fichier(t, donnee + strlen(donnee) + 1, bloc, slowns);
+            return insert;
+        } else {
             fprintf(stderr, "[ALERTE] handle_data: la donnee existe deja dans la table.\n");
             return BLOC_ERREUR;
         }
     }
 
-    return insertdata(nom_table, cle, taille_cle, t, donnee, taille_donnee, type_donnee);
+    return insertdata(nom_table, cle, taille_cle, t, donnee, taille_donnee, type_donnee, slowns);
 }
 
-uint32_t insertdata(const char *nom_table, const char *cle, size_t taille_cle, struct table_entree *t, const char *donnee, size_t taille_donnee, uint32_t type_donnee) {
+uint32_t insertdata(const char *nom_table, const char *cle, size_t taille_cle, struct table_entree *t, const char *donnee, size_t taille_donnee, const uint32_t type_donnee, const long slowns) {
     size_t offset = 0;
     uint32_t index = h(nom_table, cle, taille_cle, t->b);
     if (index == BLOC_ERREUR) {
@@ -99,20 +119,15 @@ uint32_t insertdata(const char *nom_table, const char *cle, size_t taille_cle, s
     uint32_t index_premiere_donnee = BLOC_LIBRE;
     uint32_t index_precedent = FIN_CHAINE;
     while (taille_donnee > 0) {
-        size_t taille_actuel;
-        if (taille_donnee > ESPACE_MAX) {
-            taille_actuel = ESPACE_MAX;
-        } else {
-            taille_actuel = taille_donnee;
-        }
-        
-        index_actuel = bloc_libre(t->table, t->b, index_actuel);
+        size_t taille_actuel = (taille_donnee > ESPACE_MAX) ? ESPACE_MAX : taille_donnee;
+        index_actuel = bloc_libre(t, index_actuel, slowns);
         if (index_actuel == BLOC_ERREUR) {
             return BLOC_ERREUR;
         }
 
         if (index_premiere_donnee == BLOC_LIBRE) {
-            if ((t->table[index].premier == BLOC_LIBRE) || (t->table[index].premier == index && t->table[index].longueur == BLOC_LIBRE)) {
+            verrouiller_bloc(t->fd, index, F_WRLCK);
+            if ((t->table[index].premier == BLOC_LIBRE) || (t->table[index].premier == index && t->table[index].longueur == 0)) {
                 t->table[index].premier = index_actuel;
                 index_precedent = FIN_CHAINE;
 
@@ -129,8 +144,13 @@ uint32_t insertdata(const char *nom_table, const char *cle, size_t taille_cle, s
                 t->table[index_actuel].premier = BLOC_LIBRE;
             }
 
+            attendre(slowns);
+            deverrouiller_bloc(t->fd, index);
             index_premiere_donnee = index_actuel;
-        } else {
+        }   
+
+        verrouiller_bloc(t->fd, index_actuel, F_WRLCK);
+        if (index_premiere_donnee != BLOC_LIBRE && index_actuel != index) {
             t->table[index_actuel].premier = BLOC_LIBRE;
         }
         
@@ -139,9 +159,14 @@ uint32_t insertdata(const char *nom_table, const char *cle, size_t taille_cle, s
         t->table[index_actuel].longueur = taille_donnee;
         t->table[index_actuel].type = type_donnee;
         memcpy(t->table[index_actuel].obj, donnee + offset, taille_actuel);
+        attendre(slowns);
+        deverrouiller_bloc(t->fd, index_actuel);
         
         if (index_precedent != FIN_CHAINE) {
+            verrouiller_bloc(t->fd, index_precedent, F_WRLCK);
             t->table[index_precedent].suivant = index_actuel;
+            attendre(slowns);
+            deverrouiller_bloc(t->fd, index_precedent);
         }
 
         taille_donnee -= taille_actuel;
@@ -460,5 +485,210 @@ uint32_t deplacer_bloc(const char *nom_table, struct hache_entree *table, const 
         }
     }
 
+    return 0;
+}
+
+int verrouiller_bloc(int fd, uint32_t index, short type_verrou) {
+    struct flock lock;
+    lock.l_type = type_verrou;
+    lock.l_whence = SEEK_SET;
+    lock.l_start = index * 1024;
+    lock.l_len = 1024;
+
+    if (fcntl(fd, F_SETLKW, &lock) == -1) {
+        perror("[ERREUR] fcntl verrouillage");
+        return -1;
+    }
+    return 0;
+}
+
+int deverrouiller_bloc(int fd, uint32_t index) {
+    struct flock lock;
+    lock.l_type = F_UNLCK;
+    lock.l_whence = SEEK_SET;
+    lock.l_start = index * 1024;
+    lock.l_len = 1024;
+
+    if (fcntl(fd, F_SETLKW, &lock) == -1) {
+        perror("[ERREUR] fcntl deverrouillage");
+        return -1;
+    }
+    return 0;
+}
+
+int attendre(const long slowns) {
+    if (slowns > 0) {
+        struct timespec time;
+        time.tv_sec = slowns / 1000000000L; 
+        time.tv_nsec = slowns % 1000000000L;
+        nanosleep(&time, NULL);
+    }
+
+    return 0;
+}
+
+void *insert_nouvelle_table(void *arg) {
+    thread_ags *args = (thread_ags *)arg;
+
+    for (uint32_t i = args->debut; i < args->fin; i++) {
+        if (args->table[i].longueur == BLOC_LIBRE || args->premiere_donnee[i] == 1 || args->table[i].type == TYPE_NOM_FICHIER) {
+            continue;
+        }
+
+        char *donnee = recuperer_chaine_complete(args->table, i);
+        if (donnee == NULL) {
+            args->erreur = BLOC_ERREUR;
+            return NULL;
+        }
+
+        uint32_t index = handle_data(args->nom_nouvelle_table, donnee, args->table[i].longueur, args->t_nouveau, donnee, args->table[i].longueur, args->table[i].type, args->slowns);
+        if (index == BLOC_ERREUR) {
+            args->erreur = BLOC_ERREUR;
+            free(donnee);
+            return NULL;
+        }
+
+        args->index_nom_fichier[i] = index;
+        free(donnee);
+    }
+
+    return NULL;
+}
+
+uint32_t init_extend_shrink(const char *nom_table, const uint32_t est_extend, const long slowns) {
+    struct table_entree t;
+    if (open_table(nom_table, &t, O_RDWR, PROT_READ) < 0) {
+        return BLOC_ERREUR;
+    }
+
+    struct flock lock_global;
+    lock_global.l_type = F_WRLCK;
+    lock_global.l_whence = SEEK_SET;
+    lock_global.l_start = 0;
+    lock_global.l_len = 0;
+
+    if (fcntl(t.fd, F_SETLK, &lock_global) == -1) {
+        fprintf(stderr, "[ERREUR] Redimensionnement deja en cours par un autre processus !\n");
+        close_table(&t);
+        return BLOC_ERREUR;
+    }
+
+    uint32_t *premiere_donnee = recuperer_premiere_donnee(&t);
+    if (premiere_donnee == NULL) {
+        close_table(&t);
+        return BLOC_ERREUR;
+    }
+
+    char nom_nouvelle_table[256];
+    char *extension = strrchr(nom_table, '.');
+    if (extension == NULL) {
+        fprintf(stderr, "[ERREUR] extend: le fichier n'a pas d'extension\n");
+        free(premiere_donnee);
+        close_table(&t);
+        return BLOC_ERREUR;
+    }
+
+    snprintf(nom_nouvelle_table, sizeof(nom_nouvelle_table), "table_temp%s", extension);
+    uint32_t b = est_extend ? t.b * 2 : t.b / 2;
+    if (make_cmd(nom_nouvelle_table, b) < 0) {
+        free(premiere_donnee);
+        close_table(&t);
+        return BLOC_ERREUR;
+    }
+
+    struct table_entree t_nouveau;
+    if (open_table(nom_nouvelle_table, &t_nouveau, O_RDWR, PROT_READ | PROT_WRITE) < 0) {
+        free(premiere_donnee);
+        close_table(&t);
+        return BLOC_ERREUR;
+    }
+
+    long nb_threads = sysconf(_SC_NPROCESSORS_ONLN);
+    pthread_t thread[nb_threads];
+    thread_ags args[nb_threads];
+    size_t taille = t.b / nb_threads;
+    uint32_t *index_nom_fichier = calloc(t.b, sizeof(uint32_t));
+    if (index_nom_fichier == NULL) {
+        perror("calloc (init_extend_shrink)");
+        free(premiere_donnee);
+        close_table(&t);
+        return BLOC_ERREUR;
+    }
+
+    for (long i = 0; i < nb_threads; i++) {
+        args[i].thread_id = i;
+        args[i].table = t.table;
+        args[i].nom_nouvelle_table = nom_nouvelle_table;
+        args[i].t_nouveau = &t_nouveau;
+        args[i].premiere_donnee = premiere_donnee;
+        args[i].debut = i * taille;
+        args[i].fin = (i == nb_threads - 1) ? t.b : (i + 1) * taille;
+        args[i].b = t.b;
+        args[i].slowns = slowns;
+        args[i].erreur = 0;
+        args[i].index_nom_fichier = index_nom_fichier;
+        pthread_create(&thread[i], NULL, insert_nouvelle_table, &args[i]);
+    }
+
+    uint32_t erreur = 0;
+    for (int i = 0; i < nb_threads; i++) {
+        pthread_join(thread[i], NULL);
+        if (args[i].erreur == BLOC_ERREUR) {
+            printf("[ERREUR] Le thread %d a une erreur.\n", i);
+            erreur = BLOC_ERREUR;
+        }
+    }
+
+    if (erreur != BLOC_ERREUR) {
+        for (uint32_t i = 0; i < t.b; i++) {
+            if (t.table[i].longueur != BLOC_LIBRE && t.table[i].type == TYPE_NOM_FICHIER && premiere_donnee[i] == 0) {
+                char *nom_fichier = t.table[i].obj;
+                uint32_t *versions = recuperer_versions_fichier(t.table, i);
+                if (versions != NULL) {
+                    uint32_t offset = strlen(nom_fichier) + 1;
+                    uint32_t nb_elements = (t.table[i].longueur - offset) / sizeof(uint32_t);
+
+                    for (uint32_t k = 0; k < nb_elements; k++) {
+                        uint32_t ancien_index = versions[k];
+                        uint32_t nouveau_index = index_nom_fichier[ancien_index];
+                        size_t taille_nom = strlen(nom_fichier) + 1;
+                        char *nom_donnee = malloc(taille_nom + sizeof(uint32_t));
+                        if (nom_donnee != NULL) {
+                            memcpy(nom_donnee, nom_fichier, taille_nom);
+                            memcpy(nom_donnee + taille_nom, &nouveau_index, sizeof(uint32_t));
+                            if (handle_data(nom_table, nom_fichier, strlen(nom_fichier), &t_nouveau, nom_donnee, taille_nom + sizeof(uint32_t), TYPE_NOM_FICHIER, slowns) == BLOC_ERREUR) {
+                                free(nom_donnee);
+                                erreur = BLOC_ERREUR;
+                                break;
+                            }
+
+                            free(nom_donnee);
+                        } else {
+                            perror("malloc (init_extend_shrink)");
+                            erreur = BLOC_ERREUR;
+                        }
+                    }
+                    free(versions);
+                } else {
+                    erreur = BLOC_ERREUR;
+                }
+            }
+
+            if (erreur == BLOC_ERREUR) {
+                break;
+            }
+        }
+    }
+    
+    free(premiere_donnee);
+    free(index_nom_fichier);
+    close_table(&t);
+    close_table(&t_nouveau);
+    if (erreur == BLOC_ERREUR) {
+        remove(nom_nouvelle_table);
+        return BLOC_ERREUR;
+    }
+
+    rename(nom_nouvelle_table, nom_table);
     return 0;
 }
