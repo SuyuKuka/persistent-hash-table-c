@@ -21,9 +21,9 @@ int make_cmd(const char *nom_table, const uint32_t b);
 
 int free_cmd(const char *nom_table);
 
-int insertstring_cmd(const char *nom_table, const char *chaine);
+int insertstring_cmd(const char *nom_table, const char *chaine, const long slowns);
 
-int insertfile_cmd(const char *nom_table, const char *nom_fichier);
+int insertfile_cmd(const char *nom_table, const char *nom_fichier, const long slowns);
 
 int lookup_cmd();
 
@@ -33,10 +33,10 @@ int delete_cmd(const char *nom_table, const char *chaine);
 
 int check_cmd(const char *nom_table);
 
-int extend_cmd(const char *nom_table);
+int extend_cmd(const char *nom_table, const long slowns);
 
-int shrink_cmd(const char *nom_table);
+int shrink_cmd(const char *nom_table, const long slowns);
 
-int ajust_cmd(const char *nom_table);
+int ajust_cmd(const char *nom_table, const long slowns);
 
 #endif
