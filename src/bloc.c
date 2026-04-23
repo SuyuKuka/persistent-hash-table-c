@@ -1,67 +1,105 @@
 #include "bloc.h"
 
-uint32_t bloc_libre(struct hache_entree *table, uint32_t b, uint32_t indice) {
-    uint32_t i = indice;
-    while (table[i].longueur != BLOC_LIBRE) {
-        i = (i + 1) % b;
-        if (i == indice) {
-            fprintf(stderr, "[ERREUR] bloc_libre: la table n'a plus de blocs libres.\n");
-            return BLOC_ERREUR;
+uint32_t bloc_libre(struct table_entree *t, uint32_t index, const long slowns) {
+    uint32_t i = index;
+    do {
+        verrouiller_bloc(t->fd, i, F_WRLCK);
+        if (t->table[i].longueur == BLOC_LIBRE) {
+            t->table[i].longueur = 0; 
+            attendre(slowns);
+            deverrouiller_bloc(t->fd, i);
+            return i;
         }
-    }
 
-    return i;
+        attendre(slowns);
+        deverrouiller_bloc(t->fd, i);
+        i = (i + 1) % t->b;
+    } while (i != index);
+
+    fprintf(stderr, "[ERREUR] bloc_libre: la table n'a plus de blocs libres.\n");
+    return BLOC_ERREUR;
 }
 
-uint32_t compare_bloc(struct hache_entree *table, uint32_t bloc_depart, const char *donnee, size_t taille_donnee) {
+uint32_t compare_bloc(struct table_entree *t, uint32_t bloc_depart, const char *donnee, size_t taille_donnee, const long slowns) {
     uint32_t actuel = bloc_depart;
     size_t offset = 0;
 
     while (taille_donnee > 0) {
         if (actuel == FIN_CHAINE) {
-            return 0;
+            return BLOC_ERREUR;
         }
 
+        verrouiller_bloc(t->fd, actuel, F_RDLCK);
         size_t donnee_sub = (taille_donnee > ESPACE_MAX) ? ESPACE_MAX : taille_donnee;
-        if (memcmp(table[actuel].obj, donnee + offset, donnee_sub) != 0) {
-            return 0;
-        }
+        int comp = memcmp(t->table[actuel].obj, donnee + offset, donnee_sub);
+        uint32_t suivant_actuel = t->table[actuel].suivant;
+        attendre(slowns);
+        deverrouiller_bloc(t->fd, actuel);
+
+        if (comp != 0) {
+            return BLOC_ERREUR;
+        } 
 
         offset += donnee_sub;
         taille_donnee -= donnee_sub;
-        actuel = table[actuel].suivant;
+        actuel = suivant_actuel;
     }
 
-    return BLOC_ERREUR;
+    return 0;
 }
 
-uint32_t recherche_bloc(const char *nom_table, struct hache_entree *table, const void *C, size_t taille_C, uint32_t type_donnee, uint32_t b) {
-    uint32_t index = h(nom_table, C, taille_C, b);
+uint32_t recherche_bloc(const char *nom_table, struct table_entree *t, const void *C, size_t taille_C, const uint32_t type_donnee, const long slowns) {
+    uint32_t index = h(nom_table, C, taille_C, t->b);
     if (index == BLOC_ERREUR) {
         return BLOC_ERREUR;
     }
 
-    uint32_t i = index;
-    do {
-        if (table[i].longueur == BLOC_LIBRE) {
-            i = (i + 1) % b;
-            continue;
-        }
+    verrouiller_bloc(t->fd, index, F_RDLCK);
+    uint32_t i = t->table[index].premier;
+    attendre(slowns);
+    deverrouiller_bloc(t->fd, index);
+    if (i == BLOC_LIBRE) {
+        return BLOC_ERREUR;
+    }
 
-        if (table[i].type == type_donnee) {
+    uint32_t trouver = 0;
+    while (i != FIN_CHAINE) {
+        verrouiller_bloc(t->fd, i, F_RDLCK);
+        uint32_t longueur_actuelle = t->table[i].longueur;
+        uint32_t suivant_actuel = t->table[i].suivant;
+        if (t->table[i].type == type_donnee) {
             if (type_donnee == TYPE_NOM_FICHIER) {
-                if (strcmp(table[i].obj, C) == 0) {
-                    return i;
+                if (strcmp(t->table[i].obj, C) == 0) {
+                    trouver = 1;
                 }
             } else {
-                if (table[i].longueur == taille_C && compare_bloc(table, i, C, taille_C) == BLOC_ERREUR) {
-                    return i;
+                if (longueur_actuelle == taille_C && compare_bloc(t, i, C, taille_C, slowns) == 0) {
+                    trouver = 1;
                 }
             }
         }
+        
+        attendre(slowns);
+        deverrouiller_bloc(t->fd, i);
 
-        i = (i + 1) % b;
-    } while (i != index);
+        if (trouver == 1) {
+            return i;
+        }
+
+        while (suivant_actuel != FIN_CHAINE && longueur_actuelle > ESPACE_MAX && longueur_actuelle != BLOC_LIBRE) {
+            i = suivant_actuel;
+            
+            verrouiller_bloc(t->fd, i, F_RDLCK);
+            longueur_actuelle = t->table[i].longueur;
+            suivant_actuel = t->table[i].suivant;
+            attendre(slowns);
+            deverrouiller_bloc(t->fd, i);
+        }
+
+        if (i != FIN_CHAINE) {
+            i = suivant_actuel;
+        }
+    }
 
     return BLOC_ERREUR;
 }
@@ -81,34 +119,40 @@ uint32_t bloc_suffisant(struct hache_entree *table, size_t taille_chaine, const 
     return 0;
 }
 
-int bloc_suffisant_fichier(const char *nom_table, struct hache_entree *table, const char *nom_fichier, uint32_t b) {
+uint32_t bloc_suffisant_fichier(const char *nom_table, struct hache_entree *table, const char *nom_fichier, uint32_t b) {
     uint32_t index = h(nom_table, nom_fichier, strlen(nom_fichier), b);
     if (index == BLOC_ERREUR) {
-        return -1;
+        return BLOC_ERREUR;
     }
 
-    uint32_t i = index;
+    uint32_t i = table[index].premier;
+    if (i == BLOC_LIBRE) {
+        return 1;
+    }
 
-    do {
-        if (table[i].longueur == BLOC_LIBRE) {
-            return 1; 
-        }
-
+    while (i != FIN_CHAINE) {
         if (table[i].type == TYPE_NOM_FICHIER && strcmp(table[i].obj, nom_fichier) == 0) {
             uint32_t actuel = i;
-            while (table[actuel].suivant != FIN_CHAINE) {
+            
+            while (table[actuel].suivant != FIN_CHAINE && table[actuel].longueur > ESPACE_MAX) {
                 actuel = table[actuel].suivant;
             }
 
-            if (table[actuel].longueur + 4 <= ESPACE_MAX) {
+            if (table[actuel].longueur + sizeof(uint32_t) <= ESPACE_MAX) {
                 return 0;
             } else {
                 return 1;
             }
         }
 
-        i = (i + 1) % b;
-    } while (i != index);
+        while (i != FIN_CHAINE && table[i].longueur > ESPACE_MAX) {
+            i = table[i].suivant;
+        }
+
+        if (i != FIN_CHAINE) {
+            i = table[i].suivant;
+        }
+    }
 
     return 1;
 }
@@ -121,7 +165,7 @@ uint32_t get_b(int fd) {
     }
 
     if (st.st_size % sizeof(struct hache_entree) != 0) {
-        fprintf(stderr, "[ERREUR] get_b: la table est corrompue.\n");
+        fprintf(stderr, "[ERREUR] get_b: la table est corrompue (taille correspond pas).\n");
         close(fd);
         return BLOC_ERREUR;
     }
@@ -142,15 +186,15 @@ int print_bloc(const char *nom_table) {
         return -1;
     }
 
-    printf("\n--------------------------- CONTENU DE LA TABLE ---------------------------\n");
+    printf("\n------------------------------------------------- CONTENU DE LA TABLE -------------------------------------------------\n");
     for (uint32_t i = 0; i < t.b; i++) {
         if (t.table[i].longueur == BLOC_LIBRE) {
-            printf("[DEBUG] %u | Vide\n", i);
+            printf("[DEBUG] %10u | Vide\n", i);
         } else {
-            printf("[DEBUG] %u | Occupe | Taille: %4u | Premier: %u | Suivant: %u\n", i, t.table[i].longueur, t.table[i].premier, t.table[i].suivant);
+            printf("[DEBUG] %10u | Occupe | Type: %u | Taille: %4u | Premier: %10u | Precedent: %10u |Suivant: %10u\n", i, t.table[i].type, t.table[i].longueur, t.table[i].premier, t.table[i].precedent, t.table[i].suivant);
         }
     }
-    printf("----------------------------------------------------------------------------\n");
+    printf("-----------------------------------------------------------------------------------------------------------------------\n");
 
     uint32_t *premiere_donnee = recuperer_premiere_donnee(&t);
     if (premiere_donnee == NULL) {
@@ -175,7 +219,7 @@ int print_bloc(const char *nom_table) {
                 printf("%u ", versions[k]);
             }
             printf("]\n");
-            printf("----------------------------------------------------------------------------\n");
+            printf("-----------------------------------------------------------------------------------------------------------------------\n");
             free(versions);
         }
     }
