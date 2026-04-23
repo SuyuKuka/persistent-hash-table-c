@@ -38,4 +38,10 @@ uint32_t supprimer_nom_fichier(struct hache_entree *table, uint32_t index);
 
 void supprimer_objet_complet(struct hache_entree *table, uint32_t tete);
 
+int sauvegarder_fichier_lookup(struct hache_entree *table, uint32_t index, uint32_t numero);
+
+void afficher_resume_fichier(struct hache_entree *table, uint32_t index);
+
+int extraire_fichier_depuis_bloc(struct hache_entree *table, uint32_t index, char **objet_complet, char **contenu, size_t *taille_contenu, char *nom_fichier, size_t taille_nom, long *modif, int *droit);
+
 #endif

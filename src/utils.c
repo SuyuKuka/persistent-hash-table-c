@@ -394,3 +394,120 @@ void supprimer_objet_complet(struct hache_entree *table, uint32_t tete) {
         courant = suivant;
     }
 }
+
+int extraire_fichier_depuis_bloc(struct hache_entree *table, uint32_t index, char **objet_complet, char **contenu, size_t *taille_contenu, char *nom_fichier, size_t taille_nom, long *modif, int *droit) {
+    (void)taille_nom;
+    if (table[index].longueur == BLOC_LIBRE || table[index].type != TYPE_FICHIER) {
+        return -1;
+    }
+
+    char *objet = recuperer_chaine_complete(table, index);
+    if (objet == NULL) {
+        return -1;
+    }
+
+    uint32_t longueur_totale = table[index].longueur;
+    char *fin_meta = memchr(objet, '\n', longueur_totale);
+    if (fin_meta == NULL) {
+        fprintf(stderr, "[ERREUR] lookup: metadonnees fichier corrompues.\n");
+        free(objet);
+        return -1;
+    }
+
+    size_t taille_meta = (size_t)(fin_meta - objet + 1);
+    char *meta = malloc(taille_meta + 1);
+    if (meta == NULL) {
+        perror("[ERREUR] malloc (lookup)");
+        free(objet);
+        return -1;
+    }
+
+    memcpy(meta, objet, taille_meta);
+    meta[taille_meta] = '\0';
+
+    long taille_fichier = 0;
+    if (sscanf(meta, "nom:%255[^|]|taille:%ld|modif:%ld|droit:%d",
+               nom_fichier, &taille_fichier, modif, droit) != 4) {
+        fprintf(stderr, "[ERREUR] lookup: impossible de lire les metadonnees.\n");
+        free(meta);
+        free(objet);
+        return -1;
+    }
+
+    free(meta);
+
+    if ((size_t)taille_fichier > longueur_totale - taille_meta) {
+        fprintf(stderr, "[ERREUR] lookup: taille de fichier incoherente.\n");
+        free(objet);
+        return -1;
+    }
+
+    *objet_complet = objet;
+    *contenu = objet + taille_meta;
+    *taille_contenu = (size_t)taille_fichier;
+    return 0;
+}
+
+void afficher_resume_fichier(struct hache_entree *table, uint32_t index) {
+    char *objet = NULL;
+    char *contenu = NULL;
+    size_t taille_contenu = 0;
+    char nom_fichier[256] = {0};
+    long modif = 0;
+    int droit = 0;
+
+    if (extraire_fichier_depuis_bloc(table, index, &objet, &contenu, &taille_contenu, nom_fichier, sizeof(nom_fichier), &modif, &droit) < 0) {
+        printf("[ALERTE] -> bloc %u : fichier corrompu ou illisible\n", index);
+        return;
+    }
+
+    (void)contenu;
+    printf("[INFO] -> bloc %u | nom: %s | taille: %zu | modif: %ld | droit: %d\n",
+           index, nom_fichier, taille_contenu, modif, droit);
+
+    free(objet);
+}
+
+int sauvegarder_fichier_lookup(struct hache_entree *table, uint32_t index, uint32_t numero) {
+    char *objet = NULL;
+    char *contenu = NULL;
+    size_t taille_contenu = 0;
+    char nom_fichier[256] = {0};
+    long modif = 0;
+    int droit = 0;
+
+    if (extraire_fichier_depuis_bloc(table, index, &objet, &contenu, &taille_contenu,
+                                     nom_fichier, sizeof(nom_fichier), &modif, &droit) < 0) {
+        return -1;
+    }
+
+    const char *base = strrchr(nom_fichier, '/');
+    if (base != NULL) {
+        base++;
+    } else {
+        base = nom_fichier;
+    }
+
+    char chemin[512];
+    snprintf(chemin, sizeof(chemin), "lookup_%u_%s", numero, base);
+
+    int fd = open(chemin, O_CREAT | O_WRONLY | O_TRUNC, (mode_t)(droit & 0777));
+    if (fd < 0) {
+        perror("[ERREUR] open (lookup save)");
+        free(objet);
+        return -1;
+    }
+
+    ssize_t ecrit = write(fd, contenu, taille_contenu);
+    if (ecrit < 0 || (size_t)ecrit != taille_contenu) {
+        perror("[ERREUR] write (lookup save)");
+        close(fd);
+        free(objet);
+        return -1;
+    }
+
+    close(fd);
+    printf("[INFO] Fichier sauvegarde: %s\n", chemin);
+    free(objet);
+    return 0;
+}
