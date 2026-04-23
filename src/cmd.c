@@ -28,6 +28,7 @@ int make_cmd(const char *nom_table, const uint32_t b) {
 
     for (uint32_t i = 0; i < b; i++) {
         table[i].premier = i;
+        table[i].precedent = FIN_CHAINE;
         table[i].suivant = FIN_CHAINE;
         table[i].longueur = BLOC_LIBRE;
         table[i].type = TYPE_VIDE;
@@ -56,6 +57,7 @@ int free_cmd(const char *nom_table) {
     for (uint32_t i = 0; i < t.b; i++) {
         if (t.table[i].longueur == BLOC_LIBRE) {
             bloc_libre++;
+            continue;
         }
         
         if (premiere_donnee[i] == 0) {
@@ -147,6 +149,14 @@ int insertfile_cmd(const char *nom_table, const char *nom_fichier) {
     memcpy(donnee + taille_meta, contenu, st.st_size);
 
     uint32_t bloc_necessaire = bloc_suffisant_fichier(nom_table, t.table, nom_fichier, t.b);
+    if (bloc_necessaire == BLOC_ERREUR) {
+        free(donnee);
+        munmap(contenu, st.st_size);
+        close(fd);
+        close_table(&t);
+        return -1;
+    }
+
     size_t taille_necessaire = taille_totale + (bloc_necessaire * ESPACE_MAX);
     if (bloc_suffisant(t.table, taille_necessaire, t.b) == BLOC_ERREUR) {
         free(donnee);
@@ -172,11 +182,12 @@ int insertfile_cmd(const char *nom_table, const char *nom_fichier) {
         memcpy(nom_donnee, nom_fichier, taille_nom);
         memcpy(nom_donnee + taille_nom, &index, sizeof(uint32_t));
 
-        uint32_t i = handle_data(nom_table, nom_fichier, strlen(nom_fichier), &t, nom_donnee, taille_nom + sizeof(uint32_t), TYPE_NOM_FICHIER);
-        free(nom_donnee);
-        if (i == BLOC_ERREUR) {
+        if (handle_data(nom_table, nom_fichier, strlen(nom_fichier), &t, nom_donnee, taille_nom + sizeof(uint32_t), TYPE_NOM_FICHIER) == BLOC_ERREUR) {
+            free(nom_donnee);
             return -1;
         }
+        
+        free(nom_donnee);
     }
     
     free(donnee);
@@ -297,47 +308,51 @@ int deletehash_cmd(const char *nom_table, const uint32_t hashcode) {
         return -1;
     }
 
-    if (hashcode >= t.b) {
-        fprintf(stderr, "[ERREUR] deletehash: le hashcode est hors limite de la table.");
+    if (t.b <= hashcode) {
+        fprintf(stderr, "[ERREUR] deletehash: le hashcode depasse la taille de la table.\n");
         close_table(&t);
         return -1;
     }
 
-    uint32_t premier_supprimer = 1;
-    uint32_t index = hashcode;
-    do {
-        if (t.table[index].premier == hashcode) {
-            if (t.table[index].type == TYPE_CHAINE) {
-                supprimer_bloc(t.table, index);
-            } else if (t.table[index].type == TYPE_FICHIER) {
-                if (premier_supprimer == 1) {
-                    char nom_fichier[256];
-                    if (sscanf(t.table[index].obj, "nom:%255[^|]", nom_fichier) != 1) {
-                        fprintf(stderr, "[ERREUR] deletehash: fichier corrompu.\n");
-                        close_table(&t);
-                        return -1;
-                    }
+    if ((t.table[hashcode].premier == hashcode && t.table[hashcode].longueur == BLOC_LIBRE)
+        || (t.table[hashcode].premier == BLOC_LIBRE)) {
+        close_table(&t);
+        return 0;
+    }
 
-                    premier_supprimer = supprimer_versions_fichier(nom_table, t.table, nom_fichier, hashcode, t.b);
-                    if (premier_supprimer == BLOC_ERREUR) {
-                        close_table(&t);
-                        return -1;
-                    }
-                }
-
-                supprimer_bloc(t.table, index);
-            } else if (t.table[index].type == TYPE_NOM_FICHIER) {
-                if (supprimer_nom_fichier(t.table, index) == BLOC_ERREUR) {
-                    close_table(&t);
-                    return -1;
-                }
+    uint32_t index = t.table[hashcode].premier;
+    uint32_t bloc_actuel = index;
+    while (bloc_actuel != FIN_CHAINE) {
+        if (t.table[bloc_actuel].type == TYPE_FICHIER) {
+            if (strncmp(t.table[bloc_actuel].obj, "nom:", 4) == 0) {
+                supprimer_versions_fichier(nom_table, t.table, bloc_actuel, t.b);
+            }
+        } else if (t.table[bloc_actuel].type == TYPE_NOM_FICHIER) {
+            if (t.table[bloc_actuel].precedent == FIN_CHAINE || t.table[t.table[bloc_actuel].precedent].type != TYPE_NOM_FICHIER) {
+                supprimer_nom_fichier(t.table, bloc_actuel, t.b);
             }
         }
+        
+        bloc_actuel = t.table[bloc_actuel].suivant;
+    }
 
-        index = (index + 1) % t.b;
-    } while(hashcode != index);
+    uint32_t dernier_bloc = index;
+    while (t.table[dernier_bloc].suivant != FIN_CHAINE) {
+        dernier_bloc = t.table[dernier_bloc].suivant;
+    }
 
-    if (deplacer_bloc(nom_table, t.table, hashcode, t.b) == BLOC_ERREUR) {
+    uint32_t bloc_supprimer = dernier_bloc;
+    while (bloc_supprimer != FIN_CHAINE) {
+        uint32_t precedent = t.table[bloc_supprimer].precedent;
+        supprimer_bloc(t.table, bloc_supprimer, t.b);
+        if (bloc_supprimer == index) {
+            break;
+        }
+
+        bloc_supprimer = precedent;
+    }
+
+    if (deplacer_bloc(nom_table, t.table, t.b) == BLOC_ERREUR) {
         close_table(&t);
         return -1;
     }
@@ -371,18 +386,18 @@ int delete_cmd(const char *nom_table, const char *chaine) {
         }
 
         for (uint32_t k = 0; k < nb_elements; k++) {
-            supprimer_objet_complet(t.table, versions[k]);
+            supprimer_objet_complet(t.table, versions[k], t.b);
         }
 
         free(versions);
 
-        supprimer_objet_complet(t.table, bloc_nom);
+        supprimer_objet_complet(t.table, bloc_nom, t.b);
         trouve = 1;
     }
 
     uint32_t bloc_str = recherche_bloc(nom_table, t.table, chaine, taille, TYPE_CHAINE, t.b);
     if (bloc_str != BLOC_ERREUR) {
-        supprimer_objet_complet(t.table, bloc_str);
+        supprimer_objet_complet(t.table, bloc_str, t.b);
         trouve = 1;
     }
 
@@ -392,7 +407,7 @@ int delete_cmd(const char *nom_table, const char *chaine) {
         return -1;
     }
 
-    if (deplacer_bloc(nom_table, t.table, hashcode, t.b) == BLOC_ERREUR) {
+    if (deplacer_bloc(nom_table, t.table, t.b) == BLOC_ERREUR) {
         close_table(&t);
         return -1;
     }
@@ -427,24 +442,30 @@ int check_cmd(const char *nom_table) {
             uint32_t hash = h(nom_table, chaine, t.table[i].longueur, t.b);
             if (hash == BLOC_ERREUR) {
                 free(premiere_donnee);
+                free(chaine);
                 close_table(&t);
                 return BLOC_ERREUR;
             }
 
-            uint32_t j = i;
-            while (j != FIN_CHAINE) {
-                if (hash != t.table[j].premier) {
-                    fprintf(stderr, "[ALERTE] Le bloc %u est corrompu, le hash du contenu est différent de premier.\n", j);
-                    free(chaine);
-                    free(premiere_donnee);
-                    close_table(&t);
-                    return -1;
-                } 
+            free(chaine);
 
-                j = t.table[j].suivant;
+            uint32_t index = t.table[hash].premier;
+            int verif = 0;
+            while (index != FIN_CHAINE) {
+                if (index == i) {
+                    verif = 1; 
+                    break;
+                }
+
+                index = t.table[index].suivant;
             }
 
-            free(chaine);
+            if (verif == 0) {
+                fprintf(stderr, "[ERREUR] check: le bloc %u est corrompu, le hash du contenu est différent de premier.\n", i);
+                free(premiere_donnee);
+                close_table(&t);
+                return -1;
+            }
         } else {
             char *nom_fichier = t.table[i].obj;
             uint32_t hash_nom_fichier = h(nom_table, nom_fichier, strlen(nom_fichier), t.b);
@@ -454,8 +475,20 @@ int check_cmd(const char *nom_table) {
                 return BLOC_ERREUR;
             }
 
-            if (hash_nom_fichier != t.table[i].premier) {
-                fprintf(stderr, "[ALERTE] Le bloc %u est corrompu (%s): le hash du contenu est différent de premier.\n", i, nom_fichier);
+            uint32_t index = t.table[hash_nom_fichier].premier;
+            int verif = 0;
+
+            while (index != FIN_CHAINE) {
+                if (index == i) {
+                    verif = 1;
+                    break;
+                }
+                
+                index = t.table[index].suivant;
+            }
+
+            if (verif == 0) {
+                fprintf(stderr, "[ERREUR] check: le bloc %u est corrompu (%s): il n'est pas lié à la boîte aux lettres %u.\n", i, nom_fichier, hash_nom_fichier);
                 free(premiere_donnee);
                 close_table(&t);
                 return -1;
@@ -463,12 +496,12 @@ int check_cmd(const char *nom_table) {
 
             uint32_t offset = strlen(t.table[i].obj) + 1;
             if (t.table[i].obj[offset - 1] != '\0') {
-                fprintf(stderr, "[ALERTE] Le bloc %u est corrompu: \\0 n'a pas ete trouve.\n", i);
+                fprintf(stderr, "[ERREUR] check: le bloc %u est corrompu: \\0 n'a pas ete trouve.\n", i);
                 free(premiere_donnee);
                 close_table(&t);
                 return -1;
             }
-                
+
             uint32_t *versions = recuperer_versions_fichier(t.table, i);
             if (versions == NULL) {
                 perror("malloc (check)");
@@ -480,7 +513,7 @@ int check_cmd(const char *nom_table) {
             uint32_t nb_elements = (t.table[i].longueur - offset) / sizeof(uint32_t);
             for (uint32_t k = 0; k < nb_elements; k++) {
                 if (versions[k] >= t.b) {
-                    fprintf(stderr, "[ALERTE] Le bloc %u est corrompu (%s): l'index pointe vers une zone non accessible.\n", versions[k], nom_fichier);
+                    fprintf(stderr, "[ERREUR] check: le bloc %u est corrompu (%s): l'index pointe vers une zone non accessible.\n", versions[k], nom_fichier);
                     free(versions);
                     free(premiere_donnee);
                     close_table(&t);
@@ -488,7 +521,7 @@ int check_cmd(const char *nom_table) {
                 }
 
                 if (t.table[versions[k]].longueur == BLOC_LIBRE || t.table[versions[k]].type != TYPE_FICHIER) {
-                    fprintf(stderr, "[ALERTE] Le bloc %u est corrompu (%s): l'index ne pointe pas vers le bon fichier.\n", versions[k], nom_fichier);
+                    fprintf(stderr, "[ERREUR] check: le bloc %u est corrompu (%s): l'index ne pointe pas vers le bon fichier.\n", versions[k], nom_fichier);
                     free(versions);
                     free(premiere_donnee);
                     close_table(&t);
@@ -496,7 +529,7 @@ int check_cmd(const char *nom_table) {
                 }
 
                 if (memcmp(t.table[versions[k]].obj + strlen("nom:"), nom_fichier, strlen(nom_fichier)) != 0) {
-                    fprintf(stderr, "[ALERTE] Le bloc %u est corrompu (%s): le nom du fichier ne correspond pas.\n", versions[k], nom_fichier);
+                    fprintf(stderr, "[ERREUR] check_cmd: le bloc %u est corrompu (%s): le nom du fichier ne correspond pas.\n", versions[k], nom_fichier);
                     free(versions);
                     free(premiere_donnee);
                     close_table(&t);

@@ -19,12 +19,12 @@ uint32_t compare_bloc(struct hache_entree *table, uint32_t bloc_depart, const ch
 
     while (taille_donnee > 0) {
         if (actuel == FIN_CHAINE) {
-            return 0;
+            return BLOC_ERREUR;
         }
 
         size_t donnee_sub = (taille_donnee > ESPACE_MAX) ? ESPACE_MAX : taille_donnee;
         if (memcmp(table[actuel].obj, donnee + offset, donnee_sub) != 0) {
-            return 0;
+            return BLOC_ERREUR;
         }
 
         offset += donnee_sub;
@@ -32,7 +32,7 @@ uint32_t compare_bloc(struct hache_entree *table, uint32_t bloc_depart, const ch
         actuel = table[actuel].suivant;
     }
 
-    return BLOC_ERREUR;
+    return 0;
 }
 
 uint32_t recherche_bloc(const char *nom_table, struct hache_entree *table, const void *C, size_t taille_C, uint32_t type_donnee, uint32_t b) {
@@ -41,27 +41,32 @@ uint32_t recherche_bloc(const char *nom_table, struct hache_entree *table, const
         return BLOC_ERREUR;
     }
 
-    uint32_t i = index;
-    do {
-        if (table[i].longueur == BLOC_LIBRE) {
-            i = (i + 1) % b;
-            continue;
-        }
+    uint32_t i = table[index].premier;
+    if (i == BLOC_LIBRE) {
+        return BLOC_ERREUR;
+    }
 
+    while (i != FIN_CHAINE) {
         if (table[i].type == type_donnee) {
             if (type_donnee == TYPE_NOM_FICHIER) {
                 if (strcmp(table[i].obj, C) == 0) {
                     return i;
                 }
             } else {
-                if (table[i].longueur == taille_C && compare_bloc(table, i, C, taille_C) == BLOC_ERREUR) {
+                if (table[i].longueur == taille_C && compare_bloc(table, i, C, taille_C) == 0) {
                     return i;
                 }
             }
         }
 
-        i = (i + 1) % b;
-    } while (i != index);
+        while (i != FIN_CHAINE && table[i].longueur > ESPACE_MAX) {
+            i = table[i].suivant;
+        }
+
+        if (i != FIN_CHAINE) {
+            i = table[i].suivant;
+        }
+    }
 
     return BLOC_ERREUR;
 }
@@ -81,34 +86,40 @@ uint32_t bloc_suffisant(struct hache_entree *table, size_t taille_chaine, const 
     return 0;
 }
 
-int bloc_suffisant_fichier(const char *nom_table, struct hache_entree *table, const char *nom_fichier, uint32_t b) {
+uint32_t bloc_suffisant_fichier(const char *nom_table, struct hache_entree *table, const char *nom_fichier, uint32_t b) {
     uint32_t index = h(nom_table, nom_fichier, strlen(nom_fichier), b);
     if (index == BLOC_ERREUR) {
-        return -1;
+        return BLOC_ERREUR;
     }
 
-    uint32_t i = index;
+    uint32_t i = table[index].premier;
+    if (i == BLOC_LIBRE) {
+        return 1;
+    }
 
-    do {
-        if (table[i].longueur == BLOC_LIBRE) {
-            return 1; 
-        }
-
+    while (i != FIN_CHAINE) {
         if (table[i].type == TYPE_NOM_FICHIER && strcmp(table[i].obj, nom_fichier) == 0) {
             uint32_t actuel = i;
-            while (table[actuel].suivant != FIN_CHAINE) {
+            
+            while (table[actuel].suivant != FIN_CHAINE && table[actuel].longueur > ESPACE_MAX) {
                 actuel = table[actuel].suivant;
             }
 
-            if (table[actuel].longueur + 4 <= ESPACE_MAX) {
+            if (table[actuel].longueur + sizeof(uint32_t) <= ESPACE_MAX) {
                 return 0;
             } else {
                 return 1;
             }
         }
 
-        i = (i + 1) % b;
-    } while (i != index);
+        while (i != FIN_CHAINE && table[i].longueur > ESPACE_MAX) {
+            i = table[i].suivant;
+        }
+
+        if (i != FIN_CHAINE) {
+            i = table[i].suivant;
+        }
+    }
 
     return 1;
 }
@@ -121,7 +132,7 @@ uint32_t get_b(int fd) {
     }
 
     if (st.st_size % sizeof(struct hache_entree) != 0) {
-        fprintf(stderr, "[ERREUR] get_b: la table est corrompue.\n");
+        fprintf(stderr, "[ERREUR] get_b: la table est corrompue (taille correspond pas).\n");
         close(fd);
         return BLOC_ERREUR;
     }
@@ -142,15 +153,15 @@ int print_bloc(const char *nom_table) {
         return -1;
     }
 
-    printf("\n--------------------------- CONTENU DE LA TABLE ---------------------------\n");
+    printf("\n------------------------------------------------- CONTENU DE LA TABLE -------------------------------------------------\n");
     for (uint32_t i = 0; i < t.b; i++) {
         if (t.table[i].longueur == BLOC_LIBRE) {
-            printf("[DEBUG] %u | Vide\n", i);
+            printf("[DEBUG] %10u | Vide\n", i);
         } else {
-            printf("[DEBUG] %u | Occupe | Taille: %4u | Premier: %u | Suivant: %u\n", i, t.table[i].longueur, t.table[i].premier, t.table[i].suivant);
+            printf("[DEBUG] %10u | Occupe | Type: %u | Taille: %4u | Premier: %10u | Precedent: %10u |Suivant: %10u\n", i, t.table[i].type, t.table[i].longueur, t.table[i].premier, t.table[i].precedent, t.table[i].suivant);
         }
     }
-    printf("----------------------------------------------------------------------------\n");
+    printf("-----------------------------------------------------------------------------------------------------------------------\n");
 
     uint32_t *premiere_donnee = recuperer_premiere_donnee(&t);
     if (premiere_donnee == NULL) {
@@ -175,7 +186,7 @@ int print_bloc(const char *nom_table) {
                 printf("%u ", versions[k]);
             }
             printf("]\n");
-            printf("----------------------------------------------------------------------------\n");
+            printf("-----------------------------------------------------------------------------------------------------------------------\n");
             free(versions);
         }
     }
