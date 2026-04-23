@@ -28,15 +28,17 @@ uint32_t *recuperer_versions_fichier(struct hache_entree *table, uint32_t index)
 
 void mettre_a_jour_versions_fichiers(struct hache_entree *table, uint32_t *versions, const uint32_t nb_elements, const uint32_t i);
 
-void supprimer_bloc(struct hache_entree *table, uint32_t index);
+void supprimer_bloc(struct hache_entree *table, uint32_t index, const uint32_t b);
 
-uint32_t supprimer_versions_fichier(const char *nom_table, struct hache_entree *table, const char *nom_fichier, const uint32_t hashcode, const uint32_t b);
+void supprimer_par_derriere(struct hache_entree *table, uint32_t index, const uint32_t b);
 
-uint32_t deplacer_bloc(const char *nom_table, struct hache_entree *table, const uint32_t hashcode, uint32_t b);
+uint32_t supprimer_versions_fichier(const char *nom_table, struct hache_entree *table, uint32_t index, const uint32_t b);
 
-uint32_t supprimer_nom_fichier(struct hache_entree *table, uint32_t index);
+uint32_t supprimer_nom_fichier(struct hache_entree *table, uint32_t index, const uint32_t b);
 
-void supprimer_objet_complet(struct hache_entree *table, uint32_t tete);
+uint32_t deplacer_bloc(const char *nom_table, struct hache_entree *table, const uint32_t b);
+
+void supprimer_objet_complet(struct hache_entree *table, uint32_t tete, const uint32_t b);
 
 int sauvegarder_fichier_lookup(struct hache_entree *table, uint32_t index, uint32_t numero);
 
