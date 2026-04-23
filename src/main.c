@@ -50,7 +50,7 @@ int handle_free(int argc, char *argv[]) {
     return EXIT_SUCCESS;
 }
 
-int handle_insertstring(int argc, char *argv[]) {
+int handle_insertstring(int argc, char *argv[], const long slowns) {
     if (argc < 5) {
         fprintf(stderr, "[ERREUR] Utilisation: %s insertstring table slowns chaine\n", argv[0]);
         return EXIT_FAILURE;
@@ -61,7 +61,7 @@ int handle_insertstring(int argc, char *argv[]) {
         return EXIT_FAILURE;
     }
     
-    if (insertstring_cmd(argv[2], chaine) < 0) {
+    if (insertstring_cmd(argv[2], chaine, slowns) < 0) {
         free(chaine);
         return EXIT_FAILURE;
     }
@@ -70,13 +70,13 @@ int handle_insertstring(int argc, char *argv[]) {
     return EXIT_SUCCESS;
 }
 
-int handle_insertfile(int argc, char *argv[]) {
+int handle_insertfile(int argc, char *argv[], const long slowns) {
     if (argc != 5) {
         fprintf(stderr, "[ERREUR] Utilisation: %s insertfile table slowns nom_fichier\n", argv[0]);
         return EXIT_FAILURE;
     }
 
-    if (insertfile_cmd(argv[2], argv[4]) < 0) {
+    if (insertfile_cmd(argv[2], argv[4], slowns) < 0) {
         return EXIT_FAILURE;
     }
     return EXIT_SUCCESS;
@@ -114,7 +114,6 @@ int handle_deletehash(int argc, char *argv[]) {
     return EXIT_SUCCESS;
 }
 
-// TODO: adapter pour fichier 
 int handle_delete(int argc, char *argv[]) {
     if (argc < 5) {
         fprintf(stderr, "[ERREUR] Utilisation: %s delete table slowns chaine\n", argv[0]);
@@ -147,37 +146,37 @@ int handle_check(int argc, char *argv[]) {
     return EXIT_SUCCESS;
 }
 
-int handle_extend(int argc, char *argv[]) {
+int handle_extend(int argc, char *argv[], const long slowns) {
     if (argc != 4) {
         fprintf(stderr, "[ERREUR] Utilisation: %s extend table slowns\n", argv[0]);
         return EXIT_FAILURE;
     }
 
-    if (extend_cmd(argv[2]) < 0) {
+    if (extend_cmd(argv[2], slowns) < 0) {
         return EXIT_FAILURE;
     }
     return EXIT_SUCCESS;
 }
 
-int handle_shrink(int argc, char *argv[]) {
+int handle_shrink(int argc, char *argv[], const long slowns) {
     if (argc != 4) {
         fprintf(stderr, "[ERREUR] Utilisation: %s shrink table slowns\n", argv[0]);
         return EXIT_FAILURE;
     }
 
-    if (shrink_cmd(argv[2]) < 0) {
+    if (shrink_cmd(argv[2], slowns) < 0) {
         return EXIT_FAILURE;
     }
     return EXIT_SUCCESS;
 }
 
-int handle_ajust(int argc, char *argv[]) {
+int handle_ajust(int argc, char *argv[], const long slowns) {
     if (argc != 4) {
         fprintf(stderr, "[ERREUR] Utilisation: %s ajust table slowns\n", argv[0]);
         return EXIT_FAILURE;
     }
 
-    if (ajust_cmd(argv[2]) < 0) {
+    if (ajust_cmd(argv[2], slowns) < 0) {
         return EXIT_FAILURE;
     }
     return EXIT_SUCCESS;
@@ -191,14 +190,26 @@ int main(int argc, char *argv[]) {
 
     char *cmd = argv[1];
     int handle;
+    char *endptr;
+    long slowns = strtol(argv[3], &endptr, 10);
+    if (argv[3] == endptr || *endptr != '\0') {
+        fprintf(stderr, "[ERREUR] slows doit etre un nombre.\n");
+        return EXIT_FAILURE;
+    }
+
+    if (slowns < 0) {
+        fprintf(stderr, "[ERREUR] slowns doit etre positif.\n");
+        return EXIT_FAILURE;
+    }
+
     if (strcmp(cmd, "make") == 0) {
         handle = handle_make(argc, argv);
     } else if (strcmp(cmd, "free") == 0) {
         handle = handle_free(argc, argv);
     } else if (strcmp(cmd, "insertstring") == 0) {
-        handle = handle_insertstring(argc, argv);
+        handle = handle_insertstring(argc, argv, slowns);
     } else if (strcmp(cmd, "insertfile") == 0) {
-        handle = handle_insertfile(argc, argv);
+        handle = handle_insertfile(argc, argv, slowns);
     } else if (strcmp(cmd, "lookup") == 0) {
         handle = handle_lookup(argc, argv);
     } else if (strcmp(cmd, "deletehash") == 0) {
@@ -208,11 +219,11 @@ int main(int argc, char *argv[]) {
     } else if (strcmp(cmd, "check") == 0) {
         handle = handle_check(argc, argv);
     } else if (strcmp(cmd, "extend") == 0) {
-        handle = handle_extend(argc, argv);
+        handle = handle_extend(argc, argv, slowns);
     } else if (strcmp(cmd, "shrink") == 0) {
-        handle = handle_shrink(argc, argv);
+        handle = handle_shrink(argc, argv, slowns);
     } else if (strcmp(cmd, "ajust") == 0) {
-        handle = handle_ajust(argc, argv);
+        handle = handle_ajust(argc, argv, slowns);
     } else {
         fprintf(stderr, "[ERREUR] Commande %s inconnue.\n", cmd);
         return EXIT_FAILURE;
