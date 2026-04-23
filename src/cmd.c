@@ -6,9 +6,21 @@ int make_cmd(const char *nom_table, const uint32_t b) {
         return -1;
     }
 
-    int fd = open(nom_table, O_CREAT | O_RDWR | O_TRUNC, 0666);
+    int fd = open(nom_table, O_CREAT | O_RDWR, 0666);
     if (fd < 0) {
         perror("[ERREUR] open (make)");
+        return -1;
+    }
+
+    struct flock lock_global;
+    lock_global.l_type = F_WRLCK;
+    lock_global.l_whence = SEEK_SET;
+    lock_global.l_start = 0;
+    lock_global.l_len = 0;
+
+    if (fcntl(fd, F_SETLK, &lock_global) == -1) {
+        fprintf(stderr, "[ERREUR] make: le fichier est deja en cours d'utilisation.\n");
+        close(fd);
         return -1;
     }
     
@@ -82,7 +94,7 @@ int free_cmd(const char *nom_table) {
     return 0;
 }
 
-int insertstring_cmd(const char *nom_table, const char *chaine) {
+int insertstring_cmd(const char *nom_table, const char *chaine, const long slowns) {
     struct table_entree t;
     if (open_table(nom_table, &t, O_RDWR, PROT_READ | PROT_WRITE) < 0) {
         return -1;
@@ -94,7 +106,7 @@ int insertstring_cmd(const char *nom_table, const char *chaine) {
         return -1;
     }
 
-    if (handle_data(nom_table, chaine, taille_chaine, &t, chaine, taille_chaine, TYPE_CHAINE) == BLOC_ERREUR) {
+    if (handle_data(nom_table, chaine, taille_chaine, &t, chaine, taille_chaine, TYPE_CHAINE, slowns) == BLOC_ERREUR) {
         close_table(&t);
         return -1;
     }
@@ -103,7 +115,7 @@ int insertstring_cmd(const char *nom_table, const char *chaine) {
     return 0;
 }
 
-int insertfile_cmd(const char *nom_table, const char *nom_fichier) {
+int insertfile_cmd(const char *nom_table, const char *nom_fichier, const long slowns) {
     struct table_entree t;
     if (open_table(nom_table, &t, O_RDWR, PROT_READ | PROT_WRITE) < 0) {
         return -1;
@@ -166,7 +178,7 @@ int insertfile_cmd(const char *nom_table, const char *nom_fichier) {
         return -1;
     }
 
-    uint32_t index = handle_data(nom_table, donnee, taille_totale, &t, donnee, taille_totale, TYPE_FICHIER);
+    uint32_t index = handle_data(nom_table, donnee, taille_totale, &t, donnee, taille_totale, TYPE_FICHIER, slowns);
     if (index != BLOC_ERREUR) {
         size_t taille_nom = strlen(nom_fichier) + 1;
         char *nom_donnee = malloc(taille_nom + sizeof(uint32_t));
@@ -182,7 +194,7 @@ int insertfile_cmd(const char *nom_table, const char *nom_fichier) {
         memcpy(nom_donnee, nom_fichier, taille_nom);
         memcpy(nom_donnee + taille_nom, &index, sizeof(uint32_t));
 
-        if (handle_data(nom_table, nom_fichier, strlen(nom_fichier), &t, nom_donnee, taille_nom + sizeof(uint32_t), TYPE_NOM_FICHIER) == BLOC_ERREUR) {
+        if (handle_data(nom_table, nom_fichier, strlen(nom_fichier), &t, nom_donnee, taille_nom + sizeof(uint32_t), TYPE_NOM_FICHIER, slowns) == BLOC_ERREUR) {
             free(nom_donnee);
             return -1;
         }
@@ -398,17 +410,17 @@ int check_cmd(const char *nom_table) {
     return 0;
 }
 
-int extend_cmd(const char *nom_table) {
-    (void)nom_table;
+int extend_cmd(const char *nom_table, const long slowns) {
+    init_extend_shrink(nom_table, 1, slowns);
     return 0;
 }
 
-int shrink_cmd(const char *nom_table) {
-    (void)nom_table;
+int shrink_cmd(const char *nom_table, const long slowns) {
+    init_extend_shrink(nom_table, 0, slowns);
     return 0;
 }
 
-int ajust_cmd(const char *nom_table) {
+int ajust_cmd(const char *nom_table, const long slowns) {
     struct table_entree t;
     if (open_table(nom_table, &t, O_RDONLY, PROT_READ) < 0) {
         return -1;
@@ -424,11 +436,11 @@ int ajust_cmd(const char *nom_table) {
     close_table(&t);
     double taux_remplissage = ((double)(t.b - bloc_libre) / (double)t.b) * 100.0;
     if (taux_remplissage > 70.0) {
-        if (extend_cmd(nom_table) < 0) {
+        if (extend_cmd(nom_table, slowns) < 0) {
             return -1;
         }
     } else if (taux_remplissage < 10.0) {
-        if (shrink_cmd(nom_table) < 0) {
+        if (shrink_cmd(nom_table, slowns) < 0) {
             return -1;
         }
     } 
