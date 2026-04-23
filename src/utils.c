@@ -491,8 +491,7 @@ int sauvegarder_fichier_lookup(struct hache_entree *table, uint32_t index, uint3
     long modif = 0;
     int droit = 0;
 
-    if (extraire_fichier_depuis_bloc(table, index, &objet, &contenu, &taille_contenu,
-                                     nom_fichier, sizeof(nom_fichier), &modif, &droit) < 0) {
+    if (extraire_fichier_depuis_bloc(table, index, &objet, &contenu, &taille_contenu, nom_fichier, sizeof(nom_fichier), &modif, &droit) < 0) {
         return -1;
     }
 
@@ -503,8 +502,27 @@ int sauvegarder_fichier_lookup(struct hache_entree *table, uint32_t index, uint3
         base = nom_fichier;
     }
 
+    char nom_sans_ext[256];
+    char extension[128];
+
+    const char *point = strrchr(base, '.');
+    if (point != NULL && point != base) {
+        size_t taille_base = (size_t)(point - base);
+        if (taille_base >= sizeof(nom_sans_ext)) {
+            taille_base = sizeof(nom_sans_ext) - 1;
+        }
+
+        memcpy(nom_sans_ext, base, taille_base);
+        nom_sans_ext[taille_base] = '\0';
+
+        snprintf(extension, sizeof(extension), "%s", point);
+    } else {
+        snprintf(nom_sans_ext, sizeof(nom_sans_ext), "%s", base);
+        extension[0] = '\0';
+    }
+
     char chemin[512];
-    snprintf(chemin, sizeof(chemin), "lookup_%u_%s", numero, base);
+    snprintf(chemin, sizeof(chemin), "%s_version%u%s", nom_sans_ext, numero, extension);
 
     int fd = open(chemin, O_CREAT | O_WRONLY | O_TRUNC, (mode_t)(droit & 0777));
     if (fd < 0) {
@@ -526,6 +544,7 @@ int sauvegarder_fichier_lookup(struct hache_entree *table, uint32_t index, uint3
     free(objet);
     return 0;
 }
+
 uint32_t deplacer_bloc(const char *nom_table, struct hache_entree *table, const uint32_t b) {
     for (uint32_t i = 0; i < b; i++) {
         if (table[i].longueur == BLOC_LIBRE && table[i].premier != i && table[i].premier != BLOC_LIBRE) {
@@ -598,5 +617,26 @@ uint32_t deplacer_bloc(const char *nom_table, struct hache_entree *table, const 
         }
     }
 
+    return 0;
+}
+
+int lire_numero_version(uint32_t nb_elements, uint32_t *choix_version) {
+    char ligne[32];
+
+    printf("Entrez le numero de version (0-%u): ", nb_elements - 1);
+
+    if (fgets(ligne, sizeof(ligne), stdin) == NULL) {
+        return -1;
+    }
+
+    char *fin = NULL;
+    unsigned long val = strtoul(ligne, &fin, 10);
+
+    if (fin == ligne || val >= nb_elements) {
+        fprintf(stderr, "[ERREUR] numero de version invalide.\n");
+        return -1;
+    }
+
+    *choix_version = (uint32_t)val;
     return 0;
 }

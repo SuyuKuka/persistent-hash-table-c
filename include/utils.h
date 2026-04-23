@@ -46,4 +46,6 @@ void afficher_resume_fichier(struct hache_entree *table, uint32_t index);
 
 int extraire_fichier_depuis_bloc(struct hache_entree *table, uint32_t index, char **objet_complet, char **contenu, size_t *taille_contenu, char *nom_fichier, size_t taille_nom, long *modif, int *droit);
 
+int lire_numero_version(uint32_t nb_elements, uint32_t *choix_version);
+
 #endif
