@@ -283,11 +283,8 @@ int lookup_cmd(const char *nom_table, const char *chaine) {
                         long modif = 0;
                         int droit = 0;
 
-                        if (extraire_fichier_depuis_bloc(t.table, versions[k], &objet, &contenu,
-                                                        &taille_contenu, nom_fichier, sizeof(nom_fichier),
-                                                        &modif, &droit) == 0) {
-                            printf("\n===== CONTENU DU FICHIER %s version %u (bloc %u) =====\n",
-                                nom_fichier, k, versions[k]);
+                        if (extraire_fichier_depuis_bloc(t.table, versions[k], &objet, &contenu, &taille_contenu, nom_fichier, sizeof(nom_fichier), &modif, &droit) == 0) {
+                            printf("\n===== CONTENU DU FICHIER %s version %u (bloc %u) =====\n", nom_fichier, k, versions[k]);
                             fwrite(contenu, 1, taille_contenu, stdout);
                             printf("\n===== FIN DU FICHIER %s version %u =====\n", nom_fichier, k);
                             free(objet);
@@ -337,9 +334,7 @@ int lookup_cmd(const char *nom_table, const char *chaine) {
                             long modif = 0;
                             int droit = 0;
 
-                            if (extraire_fichier_depuis_bloc(t.table, versions[k], &objet, &contenu,
-                                                            &taille_contenu, nom_fichier, sizeof(nom_fichier),
-                                                            &modif, &droit) == 0) {
+                            if (extraire_fichier_depuis_bloc(t.table, versions[k], &objet, &contenu, &taille_contenu, nom_fichier, sizeof(nom_fichier), &modif, &droit) == 0) {
                                 printf("\n===== CONTENU DU FICHIER %s version %u (bloc %u) =====\n",
                                     nom_fichier, k, versions[k]);
                                 fwrite(contenu, 1, taille_contenu, stdout);
@@ -372,9 +367,7 @@ int lookup_cmd(const char *nom_table, const char *chaine) {
                                 long modif = 0;
                                 int droit = 0;
 
-                                if (extraire_fichier_depuis_bloc(t.table, versions[k], &objet, &contenu,
-                                                                &taille_contenu, nom_fichier, sizeof(nom_fichier),
-                                                                &modif, &droit) == 0) {
+                                if (extraire_fichier_depuis_bloc(t.table, versions[k], &objet, &contenu, &taille_contenu, nom_fichier, sizeof(nom_fichier), &modif, &droit) == 0) {
                                     printf("\n===== CONTENU DU FICHIER %s version %u (bloc %u) =====\n",
                                         nom_fichier, k, versions[k]);
                                     fwrite(contenu, 1, taille_contenu, stdout);
@@ -478,34 +471,20 @@ int delete_cmd(const char *nom_table, const char *chaine) {
     int trouve = 0;
     size_t taille = strlen(chaine);
 
-    uint32_t hashcode = h(nom_table, chaine, taille, t.b);
-    if (hashcode == BLOC_ERREUR) {
-        close_table(&t);
-        return -1;
-    }
-
     uint32_t bloc_nom = recherche_bloc(nom_table, &t, chaine, taille, TYPE_NOM_FICHIER, 0);
     if (bloc_nom != BLOC_ERREUR) {
-        uint32_t nb_elements = (t.table[bloc_nom].longueur - (strlen(t.table[bloc_nom].obj) + 1)) / sizeof(uint32_t);
-        uint32_t *versions = recuperer_versions_fichier(t.table, bloc_nom);
-        if (versions == NULL) {
+        if (supprimer_nom_fichier(t.table, bloc_nom, t.b) == BLOC_ERREUR) {
             close_table(&t);
             return -1;
         }
 
-        for (uint32_t k = 0; k < nb_elements; k++) {
-            supprimer_objet_complet(t.table, versions[k], t.b);
-        }
-
-        free(versions);
-
-        supprimer_objet_complet(t.table, bloc_nom, t.b);
+        supprimer_par_derriere(t.table, bloc_nom, t.b);
         trouve = 1;
     }
 
     uint32_t bloc_str = recherche_bloc(nom_table, &t, chaine, taille, TYPE_CHAINE, 0);
     if (bloc_str != BLOC_ERREUR) {
-        supprimer_objet_complet(t.table, bloc_str, t.b);
+        supprimer_par_derriere(t.table, bloc_str, t.b);
         trouve = 1;
     }
 
