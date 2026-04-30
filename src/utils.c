@@ -549,19 +549,37 @@ int sauvegarder_fichier_lookup(struct hache_entree *table, uint32_t index, uint3
     char chemin[512];
     snprintf(chemin, sizeof(chemin), "%s_version%u%s", nom_sans_ext, numero, extension);
 
-    int fd = open(chemin, O_CREAT | O_WRONLY | O_TRUNC, (mode_t)(droit & 0777));
+    int fd = open(chemin, O_CREAT | O_RDWR | O_TRUNC, (mode_t)(droit & 0777));
     if (fd < 0) {
         perror("[ERREUR] open (lookup save)");
         free(objet);
         return -1;
     }
 
-    ssize_t ecrit = write(fd, contenu, taille_contenu);
-    if (ecrit < 0 || (size_t)ecrit != taille_contenu) {
-        perror("[ERREUR] write (lookup save)");
+    if (ftruncate(fd, (off_t)taille_contenu) < 0) {
+        perror("[ERREUR] ftruncate (lookup save)");
         close(fd);
         free(objet);
         return -1;
+    }
+
+    if (taille_contenu > 0) {
+        char *sortie = mmap(NULL, taille_contenu, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+        if (sortie == MAP_FAILED) {
+            perror("[ERREUR] mmap (lookup save)");
+            close(fd);
+            free(objet);
+            return -1;
+        }
+
+        memcpy(sortie, contenu, taille_contenu);
+
+        if (munmap(sortie, taille_contenu) < 0) {
+            perror("[ERREUR] munmap (lookup save)");
+            close(fd);
+            free(objet);
+            return -1;
+        }
     }
 
     close(fd);
