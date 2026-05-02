@@ -413,6 +413,181 @@ uint32_t supprimer_nom_fichier(struct hache_entree *table, uint32_t index, const
     return 0;
 }
 
+void supprimer_objet_complet(struct hache_entree *table, uint32_t tete, const uint32_t b) {
+    if (tete == BLOC_ERREUR || table[tete].longueur == BLOC_LIBRE) {
+        return;
+    }
+
+    uint32_t courant = tete;
+    uint32_t restant = table[tete].longueur;
+
+    while (courant != FIN_CHAINE && restant > 0) {
+        uint32_t suivant = table[courant].suivant;
+        supprimer_bloc(table, courant, b);
+
+        if (restant > ESPACE_MAX) {
+            restant -= ESPACE_MAX;
+        } else {
+            restant = 0;
+        }
+
+        courant = suivant;
+    }
+}
+
+int extraire_fichier_depuis_bloc(struct hache_entree *table, uint32_t index, char **objet_complet, char **contenu, size_t *taille_contenu, char *nom_fichier, size_t taille_nom, long *modif, int *droit) {
+    (void)taille_nom;
+    if (table[index].longueur == BLOC_LIBRE || table[index].type != TYPE_FICHIER) {
+        return -1;
+    }
+
+    char *objet = recuperer_chaine_complete(table, index);
+    if (objet == NULL) {
+        return -1;
+    }
+
+    uint32_t longueur_totale = table[index].longueur;
+    char *fin_meta = memchr(objet, '\n', longueur_totale);
+    if (fin_meta == NULL) {
+        fprintf(stderr, "[ERREUR] lookup: metadonnees fichier corrompues.\n");
+        free(objet);
+        return -1;
+    }
+
+    size_t taille_meta = (size_t)(fin_meta - objet + 1);
+    char *meta = malloc(taille_meta + 1);
+    if (meta == NULL) {
+        perror("[ERREUR] malloc (lookup)");
+        free(objet);
+        return -1;
+    }
+
+    memcpy(meta, objet, taille_meta);
+    meta[taille_meta] = '\0';
+
+    long taille_fichier = 0;
+    if (sscanf(meta, "nom:%255[^|]|taille:%ld|modif:%ld|droit:%d",
+               nom_fichier, &taille_fichier, modif, droit) != 4) {
+        fprintf(stderr, "[ERREUR] lookup: impossible de lire les metadonnees.\n");
+        free(meta);
+        free(objet);
+        return -1;
+    }
+
+    free(meta);
+
+    if ((size_t)taille_fichier > longueur_totale - taille_meta) {
+        fprintf(stderr, "[ERREUR] lookup: taille de fichier incoherente.\n");
+        free(objet);
+        return -1;
+    }
+
+    *objet_complet = objet;
+    *contenu = objet + taille_meta;
+    *taille_contenu = (size_t)taille_fichier;
+    return 0;
+}
+
+void afficher_resume_fichier(struct hache_entree *table, uint32_t index) {
+    char *objet = NULL;
+    char *contenu = NULL;
+    size_t taille_contenu = 0;
+    char nom_fichier[256] = {0};
+    long modif = 0;
+    int droit = 0;
+
+    if (extraire_fichier_depuis_bloc(table, index, &objet, &contenu, &taille_contenu, nom_fichier, sizeof(nom_fichier), &modif, &droit) < 0) {
+        printf("[ALERTE] -> bloc %u : fichier corrompu ou illisible\n", index);
+        return;
+    }
+
+    (void)contenu;
+    printf("[INFO] -> bloc %u | nom: %s | taille: %zu | modif: %ld | droit: %d\n",
+           index, nom_fichier, taille_contenu, modif, droit);
+
+    free(objet);
+}
+
+int sauvegarder_fichier_lookup(struct hache_entree *table, uint32_t index, uint32_t numero) {
+    char *objet = NULL;
+    char *contenu = NULL;
+    size_t taille_contenu = 0;
+    char nom_fichier[256] = {0};
+    long modif = 0;
+    int droit = 0;
+
+    if (extraire_fichier_depuis_bloc(table, index, &objet, &contenu, &taille_contenu, nom_fichier, sizeof(nom_fichier), &modif, &droit) < 0) {
+        return -1;
+    }
+
+    const char *base = strrchr(nom_fichier, '/');
+    if (base != NULL) {
+        base++;
+    } else {
+        base = nom_fichier;
+    }
+
+    char nom_sans_ext[256];
+    char extension[128];
+
+    const char *point = strrchr(base, '.');
+    if (point != NULL && point != base) {
+        size_t taille_base = (size_t)(point - base);
+        if (taille_base >= sizeof(nom_sans_ext)) {
+            taille_base = sizeof(nom_sans_ext) - 1;
+        }
+
+        memcpy(nom_sans_ext, base, taille_base);
+        nom_sans_ext[taille_base] = '\0';
+
+        snprintf(extension, sizeof(extension), "%s", point);
+    } else {
+        snprintf(nom_sans_ext, sizeof(nom_sans_ext), "%s", base);
+        extension[0] = '\0';
+    }
+
+    char chemin[512];
+    snprintf(chemin, sizeof(chemin), "%s_version%u%s", nom_sans_ext, numero, extension);
+
+    int fd = open(chemin, O_CREAT | O_RDWR | O_TRUNC, (mode_t)(droit & 0777));
+    if (fd < 0) {
+        perror("[ERREUR] open (lookup save)");
+        free(objet);
+        return -1;
+    }
+
+    if (ftruncate(fd, (off_t)taille_contenu) < 0) {
+        perror("[ERREUR] ftruncate (lookup save)");
+        close(fd);
+        free(objet);
+        return -1;
+    }
+
+    if (taille_contenu > 0) {
+        char *sortie = mmap(NULL, taille_contenu, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+        if (sortie == MAP_FAILED) {
+            perror("[ERREUR] mmap (lookup save)");
+            close(fd);
+            free(objet);
+            return -1;
+        }
+
+        memcpy(sortie, contenu, taille_contenu);
+
+        if (munmap(sortie, taille_contenu) < 0) {
+            perror("[ERREUR] munmap (lookup save)");
+            close(fd);
+            free(objet);
+            return -1;
+        }
+    }
+
+    close(fd);
+    printf("[INFO] Fichier sauvegarde: %s\n", chemin);
+    free(objet);
+    return 0;
+}
+
 uint32_t deplacer_bloc(const char *nom_table, struct hache_entree *table, const uint32_t b) {
     for (uint32_t i = 0; i < b; i++) {
         if (table[i].longueur == BLOC_LIBRE && table[i].premier != i && table[i].premier != BLOC_LIBRE) {
@@ -488,6 +663,26 @@ uint32_t deplacer_bloc(const char *nom_table, struct hache_entree *table, const 
     return 0;
 }
 
+int lire_numero_version(uint32_t nb_elements, uint32_t *choix_version) {
+    char ligne[32];
+
+    printf("Entrez le numero de version (0-%u): ", nb_elements - 1);
+
+    if (fgets(ligne, sizeof(ligne), stdin) == NULL) {
+        return -1;
+    }
+
+    char *fin = NULL;
+    unsigned long val = strtoul(ligne, &fin, 10);
+
+    if (fin == ligne || val >= nb_elements) {
+        fprintf(stderr, "[ERREUR] numero de version invalide.\n");
+        return -1;
+    }
+
+    *choix_version = (uint32_t)val;
+    return 0;
+}
 int verrouiller_bloc(int fd, uint32_t index, short type_verrou) {
     struct flock lock;
     lock.l_type = type_verrou;

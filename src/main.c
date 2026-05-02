@@ -83,11 +83,22 @@ int handle_insertfile(int argc, char *argv[], const long slowns) {
 }
 
 int handle_lookup(int argc, char *argv[]) {
-    (void)argc;
-    (void)argv;
-    if (lookup_cmd() < 0) {
+    if (argc < 5) {
+        fprintf(stderr, "[ERREUR] Utilisation: %s lookup table slowns chaine\n", argv[0]);
         return EXIT_FAILURE;
     }
+
+    char *chaine = concatener_args(argc, argv);
+    if (chaine == NULL) {
+        return EXIT_FAILURE;
+    }
+
+    if (lookup_cmd(argv[2], chaine) < 0) {
+        free(chaine);
+        return EXIT_FAILURE;
+    }
+
+    free(chaine);
     return EXIT_SUCCESS;
 }
 
