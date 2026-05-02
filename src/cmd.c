@@ -209,8 +209,197 @@ int insertfile_cmd(const char *nom_table, const char *nom_fichier, const long sl
     return 0;
 }
 
-int lookup_cmd() {
+int lookup_cmd(const char *nom_table, const char *chaine) {
+    struct table_entree t;
+    if (open_table(nom_table, &t, O_RDONLY, PROT_READ) < 0) {
+        return -1;
+    }
 
+    int trouve = 0;
+    size_t taille = strlen(chaine);
+
+    uint32_t bloc_str = recherche_bloc(nom_table, &t, chaine, taille, TYPE_CHAINE, 0);
+    if (bloc_str != BLOC_ERREUR) {
+        printf("[INFO] La chaine existe dans la table (bloc %u).\n", bloc_str);
+        trouve = 1;
+    }
+
+    uint32_t bloc_nom = recherche_bloc(nom_table, &t, chaine, taille, TYPE_NOM_FICHIER, 0);
+    if (bloc_nom != BLOC_ERREUR) {
+        printf("[INFO] Des fichiers portant le nom \"%s\" existent.\n", chaine);
+
+        uint32_t *versions = recuperer_versions_fichier(t.table, bloc_nom);
+        if (versions == NULL) {
+            close_table(&t);
+            return -1;
+        }
+
+        uint32_t nb_elements = (t.table[bloc_nom].longueur - (strlen(t.table[bloc_nom].obj) + 1)) / sizeof(uint32_t);
+        printf("[INFO] Nombre de versions associees : %u\n", nb_elements);
+
+        printf("\nVersions disponibles :\n");
+        for (uint32_t k = 0; k < nb_elements; k++) {
+            printf("  [%u] ", k);
+
+            if (versions[k] >= t.b) {
+                printf("[ALERTE] index corrompu: %u\n", versions[k]);
+                continue;
+            }
+
+            if (t.table[versions[k]].longueur == BLOC_LIBRE || t.table[versions[k]].type != TYPE_FICHIER) {
+                printf("[ALERTE] bloc %u ne pointe pas vers un fichier valide\n", versions[k]);
+                continue;
+            }
+
+            afficher_resume_fichier(t.table, versions[k]);
+        }
+
+        printf("\nChoisissez une action pour ces fichiers :\n");
+        printf("  [n] juste notifier\n");
+        printf("  [a] afficher le contenu\n");
+        printf("  [s] sauvegarder les fichiers\n");
+        printf("Votre choix: ");
+
+        char choix[32];
+        if (fgets(choix, sizeof(choix), stdin) != NULL) {
+            if (choix[0] == 'a' || choix[0] == 'A' || choix[0] == 's' || choix[0] == 'S') {
+                if (nb_elements == 1) {
+                    uint32_t k = 0;
+
+                    if (versions[k] >= t.b ||
+                        t.table[versions[k]].longueur == BLOC_LIBRE ||
+                        t.table[versions[k]].type != TYPE_FICHIER) {
+                        fprintf(stderr, "[ERREUR] version invalide ou corrompue.\n");
+                        free(versions);
+                        close_table(&t);
+                        return -1;
+                    }
+
+                    if (choix[0] == 'a' || choix[0] == 'A') {
+                        char *objet = NULL;
+                        char *contenu = NULL;
+                        size_t taille_contenu = 0;
+                        char nom_fichier[256] = {0};
+                        long modif = 0;
+                        int droit = 0;
+
+                        if (extraire_fichier_depuis_bloc(t.table, versions[k], &objet, &contenu, &taille_contenu, nom_fichier, sizeof(nom_fichier), &modif, &droit) == 0) {
+                            printf("\n===== CONTENU DU FICHIER %s version %u (bloc %u) =====\n", nom_fichier, k, versions[k]);
+                            fwrite(contenu, 1, taille_contenu, stdout);
+                            printf("\n===== FIN DU FICHIER %s version %u =====\n", nom_fichier, k);
+                            free(objet);
+                        }
+                    } else {
+                        if (sauvegarder_fichier_lookup(t.table, versions[k], k) < 0) {
+                            free(versions);
+                            close_table(&t);
+                            return -1;
+                        }
+                    }
+                } else {
+                    printf("\nVoulez-vous traiter :\n");
+                    printf("  [u] une seule version\n");
+                    printf("  [t] toutes les versions\n");
+                    printf("Votre choix: ");
+
+                    char choix_version[32];
+                    if (fgets(choix_version, sizeof(choix_version), stdin) == NULL) {
+                        free(versions);
+                        close_table(&t);
+                        return -1;
+                    }
+
+                    if (choix_version[0] == 'u' || choix_version[0] == 'U') {
+                        uint32_t k;
+                        if (lire_numero_version(nb_elements, &k) < 0) {
+                            free(versions);
+                            close_table(&t);
+                            return -1;
+                        }
+
+                        if (versions[k] >= t.b ||
+                            t.table[versions[k]].longueur == BLOC_LIBRE ||
+                            t.table[versions[k]].type != TYPE_FICHIER) {
+                            fprintf(stderr, "[ERREUR] version invalide ou corrompue.\n");
+                            free(versions);
+                            close_table(&t);
+                            return -1;
+                        }
+
+                        if (choix[0] == 'a' || choix[0] == 'A') {
+                            char *objet = NULL;
+                            char *contenu = NULL;
+                            size_t taille_contenu = 0;
+                            char nom_fichier[256] = {0};
+                            long modif = 0;
+                            int droit = 0;
+
+                            if (extraire_fichier_depuis_bloc(t.table, versions[k], &objet, &contenu, &taille_contenu, nom_fichier, sizeof(nom_fichier), &modif, &droit) == 0) {
+                                printf("\n===== CONTENU DU FICHIER %s version %u (bloc %u) =====\n",
+                                    nom_fichier, k, versions[k]);
+                                fwrite(contenu, 1, taille_contenu, stdout);
+                                printf("\n===== FIN DU FICHIER %s version %u =====\n", nom_fichier, k);
+                                free(objet);
+                            }
+                        } else {
+                            if (sauvegarder_fichier_lookup(t.table, versions[k], k) < 0) {
+                                free(versions);
+                                close_table(&t);
+                                return -1;
+                            }
+                        }
+                    } else if (choix_version[0] == 't' || choix_version[0] == 'T') {
+                        for (uint32_t k = 0; k < nb_elements; k++) {
+                            if (versions[k] >= t.b) {
+                                continue;
+                            }
+
+                            if (t.table[versions[k]].longueur == BLOC_LIBRE ||
+                                t.table[versions[k]].type != TYPE_FICHIER) {
+                                continue;
+                            }
+
+                            if (choix[0] == 'a' || choix[0] == 'A') {
+                                char *objet = NULL;
+                                char *contenu = NULL;
+                                size_t taille_contenu = 0;
+                                char nom_fichier[256] = {0};
+                                long modif = 0;
+                                int droit = 0;
+
+                                if (extraire_fichier_depuis_bloc(t.table, versions[k], &objet, &contenu, &taille_contenu, nom_fichier, sizeof(nom_fichier), &modif, &droit) == 0) {
+                                    printf("\n===== CONTENU DU FICHIER %s version %u (bloc %u) =====\n",
+                                        nom_fichier, k, versions[k]);
+                                    fwrite(contenu, 1, taille_contenu, stdout);
+                                    printf("\n===== FIN DU FICHIER %s version %u =====\n", nom_fichier, k);
+                                    free(objet);
+                                }
+                            } else {
+                                if (sauvegarder_fichier_lookup(t.table, versions[k], k) < 0) {
+                                    free(versions);
+                                    close_table(&t);
+                                    return -1;
+                                }
+                            }
+                        }
+                    } else {
+                        printf("[INFO] Choix invalide, notification uniquement.\n");
+                    }
+                }
+            }else {
+                printf("[INFO] Des fichiers portant ce nom existent.\n");
+            }
+        }
+
+        free(versions);
+        trouve = 1;
+    }
+
+    if (!trouve) {
+        printf("[INFO] Aucune chaine ou fichier correspondant a \"%s\" n'a ete trouve.\n", chaine);
+    }
+
+    close_table(&t);
     return 0;
 }
 
@@ -274,8 +463,43 @@ int deletehash_cmd(const char *nom_table, const uint32_t hashcode) {
 }
 
 int delete_cmd(const char *nom_table, const char *chaine) {
-    (void)nom_table;
-    (void)chaine;
+    struct table_entree t;
+    if (open_table(nom_table, &t, O_RDWR, PROT_READ | PROT_WRITE) < 0) {
+        return -1;
+    }
+
+    int trouve = 0;
+    size_t taille = strlen(chaine);
+
+    uint32_t bloc_nom = recherche_bloc(nom_table, &t, chaine, taille, TYPE_NOM_FICHIER, 0);
+    if (bloc_nom != BLOC_ERREUR) {
+        if (supprimer_nom_fichier(t.table, bloc_nom, t.b) == BLOC_ERREUR) {
+            close_table(&t);
+            return -1;
+        }
+
+        supprimer_par_derriere(t.table, bloc_nom, t.b);
+        trouve = 1;
+    }
+
+    uint32_t bloc_str = recherche_bloc(nom_table, &t, chaine, taille, TYPE_CHAINE, 0);
+    if (bloc_str != BLOC_ERREUR) {
+        supprimer_par_derriere(t.table, bloc_str, t.b);
+        trouve = 1;
+    }
+
+    if (!trouve) {
+        fprintf(stderr, "[ERREUR] delete: entree introuvable.\n");
+        close_table(&t);
+        return -1;
+    }
+
+    if (deplacer_bloc(nom_table, t.table, t.b) == BLOC_ERREUR) {
+        close_table(&t);
+        return -1;
+    }
+
+    close_table(&t);
     return 0;
 }
 

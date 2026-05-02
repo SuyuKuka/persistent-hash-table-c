@@ -53,6 +53,16 @@ uint32_t supprimer_nom_fichier(struct hache_entree *table, uint32_t index, const
 
 uint32_t deplacer_bloc(const char *nom_table, struct hache_entree *table, const uint32_t b);
 
+void supprimer_objet_complet(struct hache_entree *table, uint32_t tete, const uint32_t b);
+
+int sauvegarder_fichier_lookup(struct hache_entree *table, uint32_t index, uint32_t numero);
+
+void afficher_resume_fichier(struct hache_entree *table, uint32_t index);
+
+int extraire_fichier_depuis_bloc(struct hache_entree *table, uint32_t index, char **objet_complet, char **contenu, size_t *taille_contenu, char *nom_fichier, size_t taille_nom, long *modif, int *droit);
+
+int lire_numero_version(uint32_t nb_elements, uint32_t *choix_version);
+
 int verrouiller_bloc(int fd, uint32_t index, short type_verrou);
 
 int deverrouiller_bloc(int fd, uint32_t index);
