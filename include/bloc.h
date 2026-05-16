@@ -33,18 +33,24 @@ struct hache_entree {
     char obj[ESPACE_MAX]; // l’objet stocké.
 };
 
-uint32_t bloc_libre(struct table_entree *t, uint32_t index, const long slowns);
+uint32_t bloc_libre(struct table_entree *t, uint32_t index);
 
-uint32_t compare_bloc(struct table_entree *t, uint32_t bloc_depart, const char *donnee, size_t taille_donnee, const long slowns);
+uint32_t compare_bloc(struct table_entree *t, uint32_t bloc_depart, const char *donnee, size_t taille_donnee);
 
-uint32_t recherche_bloc(const char *nom_table, struct table_entree *t, const void *C, size_t taille_C, const uint32_t type_donnee, const long slowns);
+uint32_t recherche_bloc(const char *nom_table, struct table_entree *t, const void *C, size_t taille_C, const uint32_t type_donnee);
 
 uint32_t bloc_suffisant(struct hache_entree *table, size_t taille_chaine, const uint32_t b);
 
-uint32_t bloc_suffisant_fichier(const char *nom_table, struct hache_entree *table, const char *nom_fichier, uint32_t b);
+uint32_t bloc_suffisant_fichier(const char *nom_table, struct table_entree *t, const char *nom_fichier);
 
 uint32_t get_b(int fd);
 
 int print_bloc(const char *nom_table);
+
+int verrouiller_bloc(int fd, uint32_t index, short type_verrou);
+
+int deverrouiller_bloc(int fd, uint32_t index);
+
+int attendre(const long slowns);
 
 #endif

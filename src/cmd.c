@@ -51,9 +51,9 @@ int make_cmd(const char *nom_table, const uint32_t b) {
     return 0;
 }
 
-int free_cmd(const char *nom_table) {
+int free_cmd(const char *nom_table, const long slowns) {
     struct table_entree t;
-    if (open_table(nom_table, &t, O_RDONLY, PROT_READ) < 0) {
+    if (open_table(nom_table, &t, O_RDONLY, PROT_READ, slowns) < 0) {
         return -1;
     }
 
@@ -67,15 +67,21 @@ int free_cmd(const char *nom_table) {
     }
 
     for (uint32_t i = 0; i < t.b; i++) {
-        if (t.table[i].longueur == BLOC_LIBRE) {
+        verrouiller_bloc(t.fd, i, F_RDLCK);
+        uint32_t longueur_actuelle = t.table[i].longueur;
+        uint32_t type_actuel = t.table[i].type;
+        attendre(slowns);
+        deverrouiller_bloc(t.fd, i);
+
+        if (longueur_actuelle == BLOC_LIBRE) {
             bloc_libre++;
             continue;
         }
         
         if (premiere_donnee[i] == 0) {
-            if (t.table[i].type == TYPE_CHAINE) {
+            if (type_actuel == TYPE_CHAINE) {
                 nb_chaine++;
-            } else if (t.table[i].type == TYPE_FICHIER) {
+            } else if (type_actuel == TYPE_FICHIER) {
                 nb_fichier++;
             }
         }
@@ -96,7 +102,7 @@ int free_cmd(const char *nom_table) {
 
 int insertstring_cmd(const char *nom_table, const char *chaine, const long slowns) {
     struct table_entree t;
-    if (open_table(nom_table, &t, O_RDWR, PROT_READ | PROT_WRITE) < 0) {
+    if (open_table(nom_table, &t, O_RDWR, PROT_READ | PROT_WRITE, slowns) < 0) {
         return -1;
     }
 
@@ -106,7 +112,7 @@ int insertstring_cmd(const char *nom_table, const char *chaine, const long slown
         return -1;
     }
 
-    if (handle_data(nom_table, chaine, taille_chaine, &t, chaine, taille_chaine, TYPE_CHAINE, slowns) == BLOC_ERREUR) {
+    if (handle_data(nom_table, chaine, taille_chaine, &t, chaine, taille_chaine, TYPE_CHAINE) == BLOC_ERREUR) {
         close_table(&t);
         return -1;
     }
@@ -117,7 +123,7 @@ int insertstring_cmd(const char *nom_table, const char *chaine, const long slown
 
 int insertfile_cmd(const char *nom_table, const char *nom_fichier, const long slowns) {
     struct table_entree t;
-    if (open_table(nom_table, &t, O_RDWR, PROT_READ | PROT_WRITE) < 0) {
+    if (open_table(nom_table, &t, O_RDWR, PROT_READ | PROT_WRITE, slowns) < 0) {
         return -1;
     }
 
@@ -160,7 +166,7 @@ int insertfile_cmd(const char *nom_table, const char *nom_fichier, const long sl
     memcpy(donnee, metadonnee, taille_meta);
     memcpy(donnee + taille_meta, contenu, st.st_size);
 
-    uint32_t bloc_necessaire = bloc_suffisant_fichier(nom_table, t.table, nom_fichier, t.b);
+    uint32_t bloc_necessaire = bloc_suffisant_fichier(nom_table, &t, nom_fichier);
     if (bloc_necessaire == BLOC_ERREUR) {
         free(donnee);
         munmap(contenu, st.st_size);
@@ -178,7 +184,7 @@ int insertfile_cmd(const char *nom_table, const char *nom_fichier, const long sl
         return -1;
     }
 
-    uint32_t index = handle_data(nom_table, donnee, taille_totale, &t, donnee, taille_totale, TYPE_FICHIER, slowns);
+    uint32_t index = handle_data(nom_table, donnee, taille_totale, &t, donnee, taille_totale, TYPE_FICHIER);
     if (index != BLOC_ERREUR) {
         size_t taille_nom = strlen(nom_fichier) + 1;
         char *nom_donnee = malloc(taille_nom + sizeof(uint32_t));
@@ -194,7 +200,7 @@ int insertfile_cmd(const char *nom_table, const char *nom_fichier, const long sl
         memcpy(nom_donnee, nom_fichier, taille_nom);
         memcpy(nom_donnee + taille_nom, &index, sizeof(uint32_t));
 
-        if (handle_data(nom_table, nom_fichier, strlen(nom_fichier), &t, nom_donnee, taille_nom + sizeof(uint32_t), TYPE_NOM_FICHIER, slowns) == BLOC_ERREUR) {
+        if (handle_data(nom_table, nom_fichier, strlen(nom_fichier), &t, nom_donnee, taille_nom + sizeof(uint32_t), TYPE_NOM_FICHIER) == BLOC_ERREUR) {
             free(nom_donnee);
             return -1;
         }
@@ -209,34 +215,39 @@ int insertfile_cmd(const char *nom_table, const char *nom_fichier, const long sl
     return 0;
 }
 
-int lookup_cmd(const char *nom_table, const char *chaine) {
+int lookup_cmd(const char *nom_table, const char *chaine, const long slowns) {
     struct table_entree t;
-    if (open_table(nom_table, &t, O_RDONLY, PROT_READ) < 0) {
+    if (open_table(nom_table, &t, O_RDONLY, PROT_READ, slowns) < 0) {
         return -1;
     }
 
     int trouve = 0;
     size_t taille = strlen(chaine);
 
-    uint32_t bloc_str = recherche_bloc(nom_table, &t, chaine, taille, TYPE_CHAINE, 0);
+    uint32_t bloc_str = recherche_bloc(nom_table, &t, chaine, taille, TYPE_CHAINE);
     if (bloc_str != BLOC_ERREUR) {
         printf("[INFO] La chaine existe dans la table (bloc %u).\n", bloc_str);
         trouve = 1;
     }
 
-    uint32_t bloc_nom = recherche_bloc(nom_table, &t, chaine, taille, TYPE_NOM_FICHIER, 0);
+    uint32_t bloc_nom = recherche_bloc(nom_table, &t, chaine, taille, TYPE_NOM_FICHIER);
     if (bloc_nom != BLOC_ERREUR) {
         printf("[INFO] Des fichiers portant le nom \"%s\" existent.\n", chaine);
 
-        uint32_t *versions = recuperer_versions_fichier(t.table, bloc_nom);
+        uint32_t *versions = recuperer_versions_fichier(&t, bloc_nom);
         if (versions == NULL) {
             close_table(&t);
             return -1;
         }
 
-        uint32_t nb_elements = (t.table[bloc_nom].longueur - (strlen(t.table[bloc_nom].obj) + 1)) / sizeof(uint32_t);
-        printf("[INFO] Nombre de versions associees : %u\n", nb_elements);
+        verrouiller_bloc(t.fd, bloc_nom, F_RDLCK);
+        uint32_t longueur_nom = t.table[bloc_nom].longueur;
+        size_t taille = strlen(t.table[bloc_nom].obj);
+        attendre(slowns);
+        deverrouiller_bloc(t.fd, bloc_nom);
 
+        uint32_t nb_elements = (longueur_nom - (taille + 1)) / sizeof(uint32_t);
+        printf("[INFO] Nombre de versions associees : %u\n", nb_elements);
         printf("\nVersions disponibles :\n");
         for (uint32_t k = 0; k < nb_elements; k++) {
             printf("  [%u] ", k);
@@ -246,12 +257,17 @@ int lookup_cmd(const char *nom_table, const char *chaine) {
                 continue;
             }
 
-            if (t.table[versions[k]].longueur == BLOC_LIBRE || t.table[versions[k]].type != TYPE_FICHIER) {
+            verrouiller_bloc(t.fd, versions[k], F_RDLCK);
+            uint32_t longueur_version = t.table[versions[k]].longueur;
+            uint32_t type_version = t.table[versions[k]].type;
+            attendre(slowns);
+            deverrouiller_bloc(t.fd, versions[k]);
+            if (longueur_version == BLOC_LIBRE || type_version != TYPE_FICHIER) {
                 printf("[ALERTE] bloc %u ne pointe pas vers un fichier valide\n", versions[k]);
                 continue;
             }
 
-            afficher_resume_fichier(t.table, versions[k]);
+            afficher_resume_fichier(&t, versions[k]);
         }
 
         printf("\nChoisissez une action pour ces fichiers :\n");
@@ -265,10 +281,13 @@ int lookup_cmd(const char *nom_table, const char *chaine) {
             if (choix[0] == 'a' || choix[0] == 'A' || choix[0] == 's' || choix[0] == 'S') {
                 if (nb_elements == 1) {
                     uint32_t k = 0;
+                    verrouiller_bloc(t.fd, versions[k], F_RDLCK);
+                    uint32_t longueur_version = t.table[versions[k]].longueur;
+                    uint32_t type_version = t.table[versions[k]].type;
+                    attendre(slowns);
+                    deverrouiller_bloc(t.fd, versions[k]);
 
-                    if (versions[k] >= t.b ||
-                        t.table[versions[k]].longueur == BLOC_LIBRE ||
-                        t.table[versions[k]].type != TYPE_FICHIER) {
+                    if (versions[k] >= t.b || longueur_version == BLOC_LIBRE || type_version != TYPE_FICHIER) {
                         fprintf(stderr, "[ERREUR] version invalide ou corrompue.\n");
                         free(versions);
                         close_table(&t);
@@ -283,14 +302,14 @@ int lookup_cmd(const char *nom_table, const char *chaine) {
                         long modif = 0;
                         int droit = 0;
 
-                        if (extraire_fichier_depuis_bloc(t.table, versions[k], &objet, &contenu, &taille_contenu, nom_fichier, sizeof(nom_fichier), &modif, &droit) == 0) {
+                        if (extraire_fichier_depuis_bloc(&t, versions[k], &objet, &contenu, &taille_contenu, nom_fichier, &modif, &droit) == 0) {
                             printf("\n===== CONTENU DU FICHIER %s version %u (bloc %u) =====\n", nom_fichier, k, versions[k]);
                             fwrite(contenu, 1, taille_contenu, stdout);
                             printf("\n===== FIN DU FICHIER %s version %u =====\n", nom_fichier, k);
                             free(objet);
                         }
                     } else {
-                        if (sauvegarder_fichier_lookup(t.table, versions[k], k) < 0) {
+                        if (sauvegarder_fichier_lookup(&t, versions[k], k) < 0) {
                             free(versions);
                             close_table(&t);
                             return -1;
@@ -317,9 +336,12 @@ int lookup_cmd(const char *nom_table, const char *chaine) {
                             return -1;
                         }
 
-                        if (versions[k] >= t.b ||
-                            t.table[versions[k]].longueur == BLOC_LIBRE ||
-                            t.table[versions[k]].type != TYPE_FICHIER) {
+                        verrouiller_bloc(t.fd, versions[k], F_RDLCK);
+                        uint32_t longueur_version = t.table[versions[k]].longueur;
+                        uint32_t type_version = t.table[versions[k]].type;
+                        attendre(slowns);
+                        deverrouiller_bloc(t.fd, versions[k]);
+                        if (versions[k] >= t.b || longueur_version == BLOC_LIBRE || type_version != TYPE_FICHIER) {
                             fprintf(stderr, "[ERREUR] version invalide ou corrompue.\n");
                             free(versions);
                             close_table(&t);
@@ -334,7 +356,7 @@ int lookup_cmd(const char *nom_table, const char *chaine) {
                             long modif = 0;
                             int droit = 0;
 
-                            if (extraire_fichier_depuis_bloc(t.table, versions[k], &objet, &contenu, &taille_contenu, nom_fichier, sizeof(nom_fichier), &modif, &droit) == 0) {
+                            if (extraire_fichier_depuis_bloc(&t, versions[k], &objet, &contenu, &taille_contenu, nom_fichier, &modif, &droit) == 0) {
                                 printf("\n===== CONTENU DU FICHIER %s version %u (bloc %u) =====\n",
                                     nom_fichier, k, versions[k]);
                                 fwrite(contenu, 1, taille_contenu, stdout);
@@ -342,7 +364,7 @@ int lookup_cmd(const char *nom_table, const char *chaine) {
                                 free(objet);
                             }
                         } else {
-                            if (sauvegarder_fichier_lookup(t.table, versions[k], k) < 0) {
+                            if (sauvegarder_fichier_lookup(&t, versions[k], k) < 0) {
                                 free(versions);
                                 close_table(&t);
                                 return -1;
@@ -354,8 +376,12 @@ int lookup_cmd(const char *nom_table, const char *chaine) {
                                 continue;
                             }
 
-                            if (t.table[versions[k]].longueur == BLOC_LIBRE ||
-                                t.table[versions[k]].type != TYPE_FICHIER) {
+                            verrouiller_bloc(t.fd, versions[k], F_RDLCK);
+                            uint32_t longueur_version = t.table[versions[k]].longueur;
+                            uint32_t type_version = t.table[versions[k]].type;
+                            attendre(slowns);
+                            deverrouiller_bloc(t.fd, versions[k]);
+                            if (longueur_version == BLOC_LIBRE || type_version != TYPE_FICHIER) {
                                 continue;
                             }
 
@@ -367,7 +393,7 @@ int lookup_cmd(const char *nom_table, const char *chaine) {
                                 long modif = 0;
                                 int droit = 0;
 
-                                if (extraire_fichier_depuis_bloc(t.table, versions[k], &objet, &contenu, &taille_contenu, nom_fichier, sizeof(nom_fichier), &modif, &droit) == 0) {
+                                if (extraire_fichier_depuis_bloc(&t, versions[k], &objet, &contenu, &taille_contenu, nom_fichier, &modif, &droit) == 0) {
                                     printf("\n===== CONTENU DU FICHIER %s version %u (bloc %u) =====\n",
                                         nom_fichier, k, versions[k]);
                                     fwrite(contenu, 1, taille_contenu, stdout);
@@ -375,7 +401,7 @@ int lookup_cmd(const char *nom_table, const char *chaine) {
                                     free(objet);
                                 }
                             } else {
-                                if (sauvegarder_fichier_lookup(t.table, versions[k], k) < 0) {
+                                if (sauvegarder_fichier_lookup(&t, versions[k], k) < 0) {
                                     free(versions);
                                     close_table(&t);
                                     return -1;
@@ -403,9 +429,9 @@ int lookup_cmd(const char *nom_table, const char *chaine) {
     return 0;
 }
 
-int deletehash_cmd(const char *nom_table, const uint32_t hashcode) {
+int deletehash_cmd(const char *nom_table, const uint32_t hashcode, const long slowns) {
     struct table_entree t;
-    if (open_table(nom_table, &t, O_RDWR, PROT_READ | PROT_WRITE) < 0) {
+    if (open_table(nom_table, &t, O_RDWR, PROT_READ | PROT_WRITE, slowns) < 0) {
         return -1;
     }
 
@@ -415,45 +441,65 @@ int deletehash_cmd(const char *nom_table, const uint32_t hashcode) {
         return -1;
     }
 
-    if ((t.table[hashcode].premier == hashcode && t.table[hashcode].longueur == BLOC_LIBRE)
-        || (t.table[hashcode].premier == BLOC_LIBRE)) {
+    verrouiller_bloc(t.fd, hashcode, F_RDLCK);
+    uint32_t premier_hash = t.table[hashcode].premier;
+    uint32_t longueur_hash = t.table[hashcode].longueur;
+    attendre(slowns);
+    deverrouiller_bloc(t.fd, hashcode);
+
+    if ((premier_hash == hashcode && longueur_hash == BLOC_LIBRE) || (premier_hash == BLOC_LIBRE)) {
         close_table(&t);
         return 0;
     }
 
-    uint32_t index = t.table[hashcode].premier;
+    uint32_t index = premier_hash;
     uint32_t bloc_actuel = index;
     while (bloc_actuel != FIN_CHAINE) {
-        if (t.table[bloc_actuel].type == TYPE_FICHIER) {
+        verrouiller_bloc(t.fd, bloc_actuel, F_RDLCK);
+        uint32_t type_actuel = t.table[bloc_actuel].type;
+        uint32_t precedent_actuel = t.table[bloc_actuel].precedent;
+        uint32_t suivant_actuel = t.table[bloc_actuel].suivant;
+
+        int est_premier_fichier = 1;
+        if (type_actuel == TYPE_FICHIER) {
             if (strncmp(t.table[bloc_actuel].obj, "nom:", 4) == 0) {
-                supprimer_versions_fichier(nom_table, t.table, bloc_actuel, t.b);
-            }
-        } else if (t.table[bloc_actuel].type == TYPE_NOM_FICHIER) {
-            if (t.table[bloc_actuel].precedent == FIN_CHAINE || t.table[t.table[bloc_actuel].precedent].type != TYPE_NOM_FICHIER) {
-                supprimer_nom_fichier(t.table, bloc_actuel, t.b);
+                est_premier_fichier = 0;
             }
         }
-        
-        bloc_actuel = t.table[bloc_actuel].suivant;
-    }
+        attendre(slowns);
+        deverrouiller_bloc(t.fd, bloc_actuel);
 
-    uint32_t dernier_bloc = index;
-    while (t.table[dernier_bloc].suivant != FIN_CHAINE) {
-        dernier_bloc = t.table[dernier_bloc].suivant;
-    }
-
-    uint32_t bloc_supprimer = dernier_bloc;
-    while (bloc_supprimer != FIN_CHAINE) {
-        uint32_t precedent = t.table[bloc_supprimer].precedent;
-        supprimer_bloc(t.table, bloc_supprimer, t.b);
-        if (bloc_supprimer == index) {
-            break;
+        if (type_actuel == TYPE_FICHIER) {
+            if (est_premier_fichier == 0) {
+                supprimer_versions_fichier(nom_table, &t, bloc_actuel);
+            }
+        } else if (type_actuel == TYPE_NOM_FICHIER) {
+            int premier_nom_fichier = 1;
+            
+            if (precedent_actuel == FIN_CHAINE) {
+                premier_nom_fichier = 0;
+            } else {
+                verrouiller_bloc(t.fd, precedent_actuel, F_RDLCK);
+                uint32_t type_precedent = t.table[precedent_actuel].type;
+                attendre(slowns);
+                deverrouiller_bloc(t.fd, precedent_actuel);
+                
+                if (type_precedent != TYPE_NOM_FICHIER) {
+                    premier_nom_fichier = 0;
+                }
+            }
+            
+            if (premier_nom_fichier == 0) {
+                supprimer_nom_fichier(&t, bloc_actuel);
+            }
         }
 
-        bloc_supprimer = precedent;
+        bloc_actuel = suivant_actuel;
     }
 
-    if (deplacer_bloc(nom_table, t.table, t.b) == BLOC_ERREUR) {
+    supprimer_par_derriere(&t, index);
+
+    if (deplacer_bloc(nom_table, &t) == BLOC_ERREUR) {
         close_table(&t);
         return -1;
     }
@@ -462,29 +508,29 @@ int deletehash_cmd(const char *nom_table, const uint32_t hashcode) {
     return 0;
 }
 
-int delete_cmd(const char *nom_table, const char *chaine) {
+int delete_cmd(const char *nom_table, const char *chaine, const long slowns) {
     struct table_entree t;
-    if (open_table(nom_table, &t, O_RDWR, PROT_READ | PROT_WRITE) < 0) {
+    if (open_table(nom_table, &t, O_RDWR, PROT_READ | PROT_WRITE, slowns) < 0) {
         return -1;
     }
 
     int trouve = 0;
     size_t taille = strlen(chaine);
 
-    uint32_t bloc_nom = recherche_bloc(nom_table, &t, chaine, taille, TYPE_NOM_FICHIER, 0);
+    uint32_t bloc_nom = recherche_bloc(nom_table, &t, chaine, taille, TYPE_NOM_FICHIER);
     if (bloc_nom != BLOC_ERREUR) {
-        if (supprimer_nom_fichier(t.table, bloc_nom, t.b) == BLOC_ERREUR) {
+        if (supprimer_nom_fichier(&t, bloc_nom) == BLOC_ERREUR) {
             close_table(&t);
             return -1;
         }
 
-        supprimer_par_derriere(t.table, bloc_nom, t.b);
+        supprimer_par_derriere(&t, bloc_nom);
         trouve = 1;
     }
 
-    uint32_t bloc_str = recherche_bloc(nom_table, &t, chaine, taille, TYPE_CHAINE, 0);
+    uint32_t bloc_str = recherche_bloc(nom_table, &t, chaine, taille, TYPE_CHAINE);
     if (bloc_str != BLOC_ERREUR) {
-        supprimer_par_derriere(t.table, bloc_str, t.b);
+        supprimer_par_derriere(&t, bloc_str);
         trouve = 1;
     }
 
@@ -494,7 +540,7 @@ int delete_cmd(const char *nom_table, const char *chaine) {
         return -1;
     }
 
-    if (deplacer_bloc(nom_table, t.table, t.b) == BLOC_ERREUR) {
+    if (deplacer_bloc(nom_table, &t) == BLOC_ERREUR) {
         close_table(&t);
         return -1;
     }
@@ -503,9 +549,9 @@ int delete_cmd(const char *nom_table, const char *chaine) {
     return 0;
 }
 
-int check_cmd(const char *nom_table) {
+int check_cmd(const char *nom_table, const long slowns) {
     struct table_entree t;
-    if (open_table(nom_table, &t, O_RDONLY, PROT_READ) < 0) {
+    if (open_table(nom_table, &t, O_RDONLY, PROT_READ, slowns) < 0) {
         return -1;
     }
 
@@ -516,16 +562,21 @@ int check_cmd(const char *nom_table) {
     }
 
     for (uint32_t i = 0; i < t.b; i++) {
-        if (t.table[i].longueur == BLOC_LIBRE) {
-            continue;
+        verrouiller_bloc(t.fd, i, F_RDLCK);
+        uint32_t longueur_i = t.table[i].longueur;
+        uint32_t type_i = t.table[i].type;
+        char nom_fichier[256] = {0};
+        if (longueur_i != BLOC_LIBRE && type_i == TYPE_NOM_FICHIER) {
+            strncpy(nom_fichier, t.table[i].obj, 255);
         }
-        
-        if (premiere_donnee[i] == 1) {
-            continue;
-        }
+        attendre(slowns);
+        deverrouiller_bloc(t.fd, i);
 
-        if (t.table[i].type != TYPE_NOM_FICHIER) {
-            char *chaine = recuperer_chaine_complete(t.table, i);
+        if (longueur_i == BLOC_LIBRE) continue;
+        if (premiere_donnee[i] == 1) continue;
+
+        if (type_i != TYPE_NOM_FICHIER) {
+            char *chaine = recuperer_chaine_complete(&t, i);
             uint32_t hash = h(nom_table, chaine, t.table[i].longueur, t.b);
             if (hash == BLOC_ERREUR) {
                 free(premiere_donnee);
@@ -536,7 +587,10 @@ int check_cmd(const char *nom_table) {
 
             free(chaine);
 
+            verrouiller_bloc(t.fd, hash, F_RDLCK);
             uint32_t index = t.table[hash].premier;
+            attendre(slowns);
+            deverrouiller_bloc(t.fd, hash);
             int verif = 0;
             while (index != FIN_CHAINE) {
                 if (index == i) {
@@ -544,7 +598,12 @@ int check_cmd(const char *nom_table) {
                     break;
                 }
 
-                index = t.table[index].suivant;
+                verrouiller_bloc(t.fd, index, F_RDLCK);
+                uint32_t suivant = t.table[index].suivant;
+                attendre(slowns);
+                deverrouiller_bloc(t.fd, index);
+                
+                index = suivant;
             }
 
             if (verif == 0) {
@@ -554,7 +613,6 @@ int check_cmd(const char *nom_table) {
                 return -1;
             }
         } else {
-            char *nom_fichier = t.table[i].obj;
             uint32_t hash_nom_fichier = h(nom_table, nom_fichier, strlen(nom_fichier), t.b);
             if (hash_nom_fichier == BLOC_ERREUR) {
                 free(premiere_donnee);
@@ -562,16 +620,23 @@ int check_cmd(const char *nom_table) {
                 return BLOC_ERREUR;
             }
 
+            verrouiller_bloc(t.fd, hash_nom_fichier, F_RDLCK);
             uint32_t index = t.table[hash_nom_fichier].premier;
+            attendre(slowns);
+            deverrouiller_bloc(t.fd, hash_nom_fichier);
             int verif = 0;
-
             while (index != FIN_CHAINE) {
                 if (index == i) {
                     verif = 1;
                     break;
                 }
                 
-                index = t.table[index].suivant;
+                verrouiller_bloc(t.fd, index, F_RDLCK);
+                uint32_t suivant = t.table[index].suivant;
+                attendre(slowns);
+                deverrouiller_bloc(t.fd, index);
+                
+                index = suivant;
             }
 
             if (verif == 0) {
@@ -581,7 +646,7 @@ int check_cmd(const char *nom_table) {
                 return -1;
             }
 
-            uint32_t offset = strlen(t.table[i].obj) + 1;
+            uint32_t offset = strlen(nom_fichier) + 1;
             if (t.table[i].obj[offset - 1] != '\0') {
                 fprintf(stderr, "[ERREUR] check: le bloc %u est corrompu: \\0 n'a pas ete trouve.\n", i);
                 free(premiere_donnee);
@@ -589,7 +654,7 @@ int check_cmd(const char *nom_table) {
                 return -1;
             }
 
-            uint32_t *versions = recuperer_versions_fichier(t.table, i);
+            uint32_t *versions = recuperer_versions_fichier(&t, i);
             if (versions == NULL) {
                 perror("malloc (check)");
                 free(premiere_donnee);
@@ -607,7 +672,16 @@ int check_cmd(const char *nom_table) {
                     return -1;
                 }
 
-                if (t.table[versions[k]].longueur == BLOC_LIBRE || t.table[versions[k]].type != TYPE_FICHIER) {
+                verrouiller_bloc(t.fd, versions[k], F_RDLCK);
+                uint32_t longueur_version = t.table[versions[k]].longueur;
+                uint32_t type_version = t.table[versions[k]].type;
+                char obj_version[256] = {0};
+                if (longueur_version != BLOC_LIBRE && type_version == TYPE_FICHIER) {
+                    strncpy(obj_version, t.table[versions[k]].obj, 255);
+                }
+                attendre(slowns);
+                deverrouiller_bloc(t.fd, versions[k]);
+                if (longueur_version == BLOC_LIBRE || type_version != TYPE_FICHIER) {
                     fprintf(stderr, "[ERREUR] check: le bloc %u est corrompu (%s): l'index ne pointe pas vers le bon fichier.\n", versions[k], nom_fichier);
                     free(versions);
                     free(premiere_donnee);
@@ -615,7 +689,7 @@ int check_cmd(const char *nom_table) {
                     return -1;
                 }
 
-                if (memcmp(t.table[versions[k]].obj + strlen("nom:"), nom_fichier, strlen(nom_fichier)) != 0) {
+                if (memcmp(obj_version + strlen("nom:"), nom_fichier, strlen(nom_fichier)) != 0) {
                     fprintf(stderr, "[ERREUR] check_cmd: le bloc %u est corrompu (%s): le nom du fichier ne correspond pas.\n", versions[k], nom_fichier);
                     free(versions);
                     free(premiere_donnee);
@@ -635,24 +709,34 @@ int check_cmd(const char *nom_table) {
 }
 
 int extend_cmd(const char *nom_table, const long slowns) {
-    init_extend_shrink(nom_table, 1, slowns);
+    if (init_extend_shrink(nom_table, 1, slowns) == BLOC_ERREUR) {
+        return -1;
+    }
+
     return 0;
 }
 
 int shrink_cmd(const char *nom_table, const long slowns) {
-    init_extend_shrink(nom_table, 0, slowns);
+    if (init_extend_shrink(nom_table, 0, slowns) == BLOC_ERREUR) {
+        return -1;
+    }
+    
     return 0;
 }
 
 int ajust_cmd(const char *nom_table, const long slowns) {
     struct table_entree t;
-    if (open_table(nom_table, &t, O_RDONLY, PROT_READ) < 0) {
+    if (open_table(nom_table, &t, O_RDONLY, PROT_READ, slowns) < 0) {
         return -1;
     }
 
     uint32_t bloc_libre = 0;
     for (uint32_t i = 0; i < t.b; i++) {
-        if (t.table[i].longueur == BLOC_LIBRE) {
+        verrouiller_bloc(t.fd, i, F_RDLCK);
+        uint32_t longueur_i = t.table[i].longueur;
+        attendre(slowns);
+        deverrouiller_bloc(t.fd, i);
+        if (longueur_i == BLOC_LIBRE) {
             bloc_libre++;
         }
     }
