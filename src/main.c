@@ -38,13 +38,13 @@ int handle_make(int argc, char *argv[]) {
     return EXIT_SUCCESS;
 }
 
-int handle_free(int argc, char *argv[]) {
+int handle_free(int argc, char *argv[], const long slowns) {
     if (argc != 4) {
         fprintf(stderr, "[ERREUR] Utilisation: %s free table slowns\n", argv[0]);
         return EXIT_FAILURE;
     }
 
-    if (free_cmd(argv[2]) < 0) {
+    if (free_cmd(argv[2], slowns) < 0) {
         return EXIT_FAILURE;
     }
     return EXIT_SUCCESS;
@@ -82,7 +82,7 @@ int handle_insertfile(int argc, char *argv[], const long slowns) {
     return EXIT_SUCCESS;
 }
 
-int handle_lookup(int argc, char *argv[]) {
+int handle_lookup(int argc, char *argv[], const long slowns) {
     if (argc < 5) {
         fprintf(stderr, "[ERREUR] Utilisation: %s lookup table slowns chaine\n", argv[0]);
         return EXIT_FAILURE;
@@ -93,7 +93,7 @@ int handle_lookup(int argc, char *argv[]) {
         return EXIT_FAILURE;
     }
 
-    if (lookup_cmd(argv[2], chaine) < 0) {
+    if (lookup_cmd(argv[2], chaine, slowns) < 0) {
         free(chaine);
         return EXIT_FAILURE;
     }
@@ -102,19 +102,19 @@ int handle_lookup(int argc, char *argv[]) {
     return EXIT_SUCCESS;
 }
 
-int handle_deletehash(int argc, char *argv[]) {
+int handle_deletehash(int argc, char *argv[], const long slowns) {
     if (argc != 5) {
         fprintf(stderr, "[ERREUR] Utilisation: %s deletehash table slowns hashcode\n", argv[0]);
         return EXIT_FAILURE;
     }
 
-    if (deletehash_cmd(argv[2], atoi(argv[4])) < 0) {
+    if (deletehash_cmd(argv[2], atoi(argv[4]), slowns) < 0) {
         return EXIT_FAILURE;
     }
     return EXIT_SUCCESS;
 }
 
-int handle_delete(int argc, char *argv[]) {
+int handle_delete(int argc, char *argv[], const long slowns) {
     if (argc < 5) {
         fprintf(stderr, "[ERREUR] Utilisation: %s delete table slowns chaine\n", argv[0]);
         return EXIT_FAILURE;
@@ -125,7 +125,7 @@ int handle_delete(int argc, char *argv[]) {
         return EXIT_FAILURE;
     }
 
-    if (delete_cmd(argv[2], chaine) < 0) {
+    if (delete_cmd(argv[2], chaine, slowns) < 0) {
         free(chaine);
         return EXIT_FAILURE;
     }
@@ -134,13 +134,13 @@ int handle_delete(int argc, char *argv[]) {
     return EXIT_SUCCESS;
 }
 
-int handle_check(int argc, char *argv[]) {
+int handle_check(int argc, char *argv[], const long slowns) {
     if (argc != 4) {
         fprintf(stderr, "[ERREUR] Utilisation: %s check table slowns\n", argv[0]);
         return EXIT_FAILURE;
     }
 
-    if (check_cmd(argv[2]) < 0) {
+    if (check_cmd(argv[2], slowns) < 0) {
         return EXIT_FAILURE;
     }
     return EXIT_SUCCESS;
@@ -205,19 +205,19 @@ int main(int argc, char *argv[]) {
     if (strcmp(cmd, "make") == 0) {
         handle = handle_make(argc, argv);
     } else if (strcmp(cmd, "free") == 0) {
-        handle = handle_free(argc, argv);
+        handle = handle_free(argc, argv, slowns);
     } else if (strcmp(cmd, "insertstring") == 0) {
         handle = handle_insertstring(argc, argv, slowns);
     } else if (strcmp(cmd, "insertfile") == 0) {
         handle = handle_insertfile(argc, argv, slowns);
     } else if (strcmp(cmd, "lookup") == 0) {
-        handle = handle_lookup(argc, argv);
+        handle = handle_lookup(argc, argv, slowns);
     } else if (strcmp(cmd, "deletehash") == 0) {
-        handle = handle_deletehash(argc, argv);
+        handle = handle_deletehash(argc, argv, slowns);
     } else if (strcmp(cmd, "delete") == 0) {
-        handle = handle_delete(argc, argv);
+        handle = handle_delete(argc, argv, slowns);
     } else if (strcmp(cmd, "check") == 0) {
-        handle = handle_check(argc, argv);
+        handle = handle_check(argc, argv, slowns);
     } else if (strcmp(cmd, "extend") == 0) {
         handle = handle_extend(argc, argv, slowns);
     } else if (strcmp(cmd, "shrink") == 0) {
