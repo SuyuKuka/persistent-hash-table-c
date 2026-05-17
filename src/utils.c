@@ -970,3 +970,56 @@ uint32_t init_extend_shrink(const char *nom_table, const uint32_t est_extend, co
     rename(nom_nouvelle_table, nom_table);
     return 0;
 }
+
+
+void *insert_lignes_gros_fichier(void *arg) {
+    thread_gros_fichier_args *args = (thread_gros_fichier_args *)arg;
+
+    size_t pos = args->debut;
+
+    if (pos > 0) {
+        while (pos < args->taille_fichier && args->contenu[pos - 1] != '\n') {
+            pos++;
+        }
+    }
+
+    while (pos < args->taille_fichier && pos < args->fin) {
+        size_t debut_ligne = pos;
+
+        while (pos < args->taille_fichier && args->contenu[pos] != '\n') {
+            pos++;
+        }
+
+        size_t taille_ligne = pos - debut_ligne;
+
+        if (taille_ligne > 0) {
+            char *ligne = malloc(taille_ligne + 1);
+            if (ligne == NULL) {
+                perror("[ERREUR] malloc (insertgrosfichier)");
+                args->erreur = BLOC_ERREUR;
+                return NULL;
+            }
+
+            memcpy(ligne, args->contenu + debut_ligne, taille_ligne);
+            ligne[taille_ligne] = '\0';
+
+            pthread_mutex_lock(args->mutex_insert);
+            if (handle_data(args->nom_table, ligne, taille_ligne, args->t, ligne, taille_ligne, TYPE_CHAINE) == BLOC_ERREUR) {
+                args->erreur = BLOC_ERREUR;
+            }
+            pthread_mutex_unlock(args->mutex_insert);
+
+            free(ligne);
+
+            if (args->erreur == BLOC_ERREUR) {
+                return NULL;
+            }
+        }
+
+        if (pos < args->taille_fichier && args->contenu[pos] == '\n') {
+            pos++;
+        }
+    }
+
+    return NULL;
+}

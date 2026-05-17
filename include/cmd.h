@@ -40,4 +40,7 @@ int shrink_cmd(const char *nom_table, const long slowns);
 
 int ajust_cmd(const char *nom_table, const long slowns);
 
+int insertgrosfichier_cmd(const char *nom_table, const char *nom_fichier, const long slowns);
+
+
 #endif

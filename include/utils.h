@@ -25,6 +25,19 @@ typedef struct {
     pthread_mutex_t *mutex;
 } thread_ags;
 
+typedef struct {
+    int thread_id;
+    const char *nom_table;
+    struct table_entree *t;
+    const char *contenu;
+    size_t taille_fichier;
+    size_t debut;
+    size_t fin;
+    pthread_mutex_t *mutex_insert;
+    uint32_t erreur;
+} thread_gros_fichier_args;
+
+
 int open_table(const char *nom_table, struct table_entree *t, const int flags_open, const int prot_mmap, const long slowns);
 
 void close_table(struct table_entree *t);
@@ -64,5 +77,8 @@ int lire_numero_version(uint32_t nb_elements, uint32_t *choix_version);
 void *insert_nouvelle_table(void *arg);
 
 uint32_t init_extend_shrink(const char *nom_table, const uint32_t est_extend, const long slowns);
+
+void *insert_lignes_gros_fichier(void *arg);
+
 
 #endif
