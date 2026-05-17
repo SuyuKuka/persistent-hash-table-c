@@ -497,7 +497,7 @@ int deletehash_cmd(const char *nom_table, const uint32_t hashcode, const long sl
         bloc_actuel = suivant_actuel;
     }
 
-    supprimer_par_derriere(&t, index);
+    supprimer_par_derriere(&t, index, 0);
 
     if (deplacer_bloc(nom_table, &t) == BLOC_ERREUR) {
         close_table(&t);
@@ -524,13 +524,14 @@ int delete_cmd(const char *nom_table, const char *chaine, const long slowns) {
             return -1;
         }
 
-        supprimer_par_derriere(&t, bloc_nom);
+        supprimer_par_derriere(&t, bloc_nom, 1);
         trouve = 1;
     }
 
     uint32_t bloc_str = recherche_bloc(nom_table, &t, chaine, taille, TYPE_CHAINE);
     if (bloc_str != BLOC_ERREUR) {
-        supprimer_par_derriere(&t, bloc_str);
+        printf("siuu %u\n", bloc_str);
+        supprimer_par_derriere(&t, bloc_str, 1);
         trouve = 1;
     }
 

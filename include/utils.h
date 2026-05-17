@@ -45,7 +45,7 @@ void mettre_a_jour_versions_fichiers(struct table_entree *t, uint32_t *versions,
 
 void supprimer_bloc(struct table_entree *t, uint32_t index);
 
-void supprimer_par_derriere(struct table_entree *t, uint32_t index);
+void supprimer_par_derriere(struct table_entree *t, uint32_t index, int tout_supprimer);
 
 uint32_t supprimer_versions_fichier(const char *nom_table, struct table_entree *t, uint32_t index);
 
