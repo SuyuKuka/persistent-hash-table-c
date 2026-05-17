@@ -365,7 +365,7 @@ void supprimer_bloc(struct table_entree *t, uint32_t index) {
     deverrouiller_bloc(t->fd, index);
 }
 
-void supprimer_par_derriere(struct table_entree *t, uint32_t index) {
+void supprimer_par_derriere(struct table_entree *t, uint32_t index, int tout_supprimer) {
     uint32_t dernier_bloc = index;
     while (1) {
         verrouiller_bloc(t->fd, dernier_bloc, F_RDLCK);
@@ -374,10 +374,10 @@ void supprimer_par_derriere(struct table_entree *t, uint32_t index) {
         attendre(t->slowns);
         deverrouiller_bloc(t->fd, dernier_bloc);
 
-        if (suivant != FIN_CHAINE && longueur > ESPACE_MAX) {
+        if (suivant != FIN_CHAINE && (tout_supprimer == 0 || longueur > ESPACE_MAX)) {
             dernier_bloc = suivant;
         } else {
-            break; // On a trouvé le dernier bloc
+            break;
         }
     }
 
@@ -438,7 +438,7 @@ uint32_t supprimer_versions_fichier(const char *nom_table, struct table_entree *
 
             if (pos != BLOC_ERREUR) {
                 if (nb_elements == 1) {
-                    supprimer_par_derriere(t, index_nom_fichier);
+                    supprimer_par_derriere(t, index_nom_fichier, 1);
                 } else {
                     for (uint32_t k = pos; k < nb_elements - 1; k++) {
                         versions[k] = versions[k + 1]; 
@@ -498,7 +498,7 @@ uint32_t supprimer_nom_fichier(struct table_entree *t, uint32_t index) {
 
     for (uint32_t k = 0; k < nb_elements; k++) {
         uint32_t i = versions[k];
-        supprimer_par_derriere(t, i);
+        supprimer_par_derriere(t, i, 1);
     }
 
     free(versions);
