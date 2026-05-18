@@ -352,7 +352,9 @@ void supprimer_bloc(struct table_entree *t, uint32_t index) {
     }
 
     verrouiller_bloc(t->fd, index, F_WRLCK);
-    if (premier == index || premier == BLOC_LIBRE) {
+    if (precedent == FIN_CHAINE && suivant != FIN_CHAINE && premier == index) {
+        t->table[index].premier = suivant;
+    } else if (premier == index || premier == BLOC_LIBRE) {
         t->table[index].premier = index;
     }
 
@@ -363,6 +365,7 @@ void supprimer_bloc(struct table_entree *t, uint32_t index) {
     memset(t->table[index].obj, 0, ESPACE_MAX);
     attendre(t->slowns);
     deverrouiller_bloc(t->fd, index);
+
 }
 
 void supprimer_par_derriere(struct table_entree *t, uint32_t index, int tout_supprimer) {
