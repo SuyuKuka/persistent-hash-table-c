@@ -795,6 +795,43 @@ int insertgrosfichier_cmd(const char *nom_table, const char *nom_fichier, const 
         return -1;
     }
 
+    size_t blocs_necessaires = 0;
+    size_t pos = 0;
+    while (pos < (size_t)st.st_size) {
+        size_t debut_ligne = pos;
+
+        while (pos < (size_t)st.st_size && contenu[pos] != '\n') {
+            pos++;
+        }
+
+        size_t taille_ligne = pos - debut_ligne;
+        if (taille_ligne > 0) {
+            blocs_necessaires += (taille_ligne + ESPACE_MAX - 1) / ESPACE_MAX;
+        }
+
+        if (pos < (size_t)st.st_size && contenu[pos] == '\n') {
+            pos++;
+        }
+    }
+
+    size_t blocs_libres = 0;
+    for (uint32_t i = 0; i < t.b; i++) {
+        verrouiller_bloc(t.fd, i, F_RDLCK);
+        if (t.table[i].longueur == BLOC_LIBRE) {
+            blocs_libres++;
+        }
+        attendre(slowns);
+        deverrouiller_bloc(t.fd, i);
+    }
+
+    if (blocs_libres < blocs_necessaires) {
+        fprintf(stderr, "[ERREUR] insertgrosfichier: table trop petite (%zu blocs libres, %zu necessaires).\n", blocs_libres, blocs_necessaires);
+        munmap(contenu, st.st_size);
+        close(fd);
+        close_table(&t);
+        return -1;
+    }
+
     long nb_threads = sysconf(_SC_NPROCESSORS_ONLN);
     if (nb_threads <= 0) {
         nb_threads = 1;
