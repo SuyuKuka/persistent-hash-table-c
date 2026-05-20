@@ -793,7 +793,7 @@ int insertgrosfichier_cmd(const char *nom_table, const char *nom_fichier, const 
         close_table(&t);
         return -1;
     }
-
+    /*
     size_t blocs_necessaires = 0;
     size_t pos = 0;
     while (pos < (size_t)st.st_size) {
@@ -829,7 +829,7 @@ int insertgrosfichier_cmd(const char *nom_table, const char *nom_fichier, const 
         close(fd);
         close_table(&t);
         return -1;
-    }
+    }*/
 
     long nb_threads = sysconf(_SC_NPROCESSORS_ONLN);
     if (nb_threads <= 0) {
