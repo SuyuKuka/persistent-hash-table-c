@@ -533,7 +533,6 @@ int delete_cmd(const char *nom_table, const char *chaine, const long slowns) {
 
     uint32_t bloc_str = recherche_bloc(nom_table, &t, chaine, taille, TYPE_CHAINE);
     if (bloc_str != BLOC_ERREUR) {
-        printf("siuu %u\n", bloc_str);
         supprimer_par_derriere(&t, bloc_str, 1);
         trouve = 1;
     }
