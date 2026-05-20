@@ -182,6 +182,20 @@ int handle_ajust(int argc, char *argv[], const long slowns) {
     return EXIT_SUCCESS;
 }
 
+int handle_insertgrosfichier(int argc, char *argv[], const long slowns) {
+    if (argc != 5) {
+        fprintf(stderr, "[ERREUR] Utilisation: %s insertgrosfichier table slowns fichier\n", argv[0]);
+        return EXIT_FAILURE;
+    }
+
+    if (insertgrosfichier_cmd(argv[2], argv[4], slowns) < 0) {
+        return EXIT_FAILURE;
+    }
+
+    return EXIT_SUCCESS;
+}
+
+
 int main(int argc, char *argv[]) {
     if (argc < 4) {
         fprintf(stderr, "[ERREUR] Utilisation: %s commande table slowns [autres parametres]\n", argv[0]);
@@ -224,6 +238,8 @@ int main(int argc, char *argv[]) {
         handle = handle_shrink(argc, argv, slowns);
     } else if (strcmp(cmd, "ajust") == 0) {
         handle = handle_ajust(argc, argv, slowns);
+    } else if (strcmp(cmd, "insertgrosfichier") == 0) {
+        handle = handle_insertgrosfichier(argc, argv, slowns);
     } else {
         fprintf(stderr, "[ERREUR] Commande %s inconnue.\n", cmd);
         return EXIT_FAILURE;

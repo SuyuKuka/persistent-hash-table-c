@@ -1,4 +1,7 @@
 #include "cmd.h"
+#include <sys/stat.h>
+#include <pthread.h>
+
 
 int make_cmd(const char *nom_table, const uint32_t b) {
     if (b == 0) {
@@ -755,4 +758,123 @@ int ajust_cmd(const char *nom_table, const long slowns) {
     } 
 
     return 0;
+}
+
+int insertgrosfichier_cmd(const char *nom_table, const char *nom_fichier, const long slowns) {
+    struct table_entree t;
+    if (open_table(nom_table, &t, O_RDWR, PROT_READ | PROT_WRITE, slowns) < 0) {
+        return -1;
+    }
+
+    int fd = open(nom_fichier, O_RDONLY);
+    if (fd < 0) {
+        perror("[ERREUR] open (insertgrosfichier)");
+        close_table(&t);
+        return -1;
+    }
+
+    struct stat st;
+    if (fstat(fd, &st) < 0) {
+        perror("[ERREUR] fstat (insertgrosfichier)");
+        close(fd);
+        close_table(&t);
+        return -1;
+    }
+
+    if (st.st_size == 0) {
+        close(fd);
+        close_table(&t);
+        return 0;
+    }
+
+    char *contenu = mmap(NULL, st.st_size, PROT_READ, MAP_PRIVATE, fd, 0);
+    if (contenu == MAP_FAILED) {
+        perror("[ERREUR] mmap (insertgrosfichier)");
+        close(fd);
+        close_table(&t);
+        return -1;
+    }
+
+    size_t blocs_necessaires = 0;
+    size_t pos = 0;
+    while (pos < (size_t)st.st_size) {
+        size_t debut_ligne = pos;
+
+        while (pos < (size_t)st.st_size && contenu[pos] != '\n') {
+            pos++;
+        }
+
+        size_t taille_ligne = pos - debut_ligne;
+        if (taille_ligne > 0) {
+            blocs_necessaires += (taille_ligne + ESPACE_MAX - 1) / ESPACE_MAX;
+        }
+
+        if (pos < (size_t)st.st_size && contenu[pos] == '\n') {
+            pos++;
+        }
+    }
+
+    size_t blocs_libres = 0;
+    for (uint32_t i = 0; i < t.b; i++) {
+        verrouiller_bloc(t.fd, i, F_RDLCK);
+        if (t.table[i].longueur == BLOC_LIBRE) {
+            blocs_libres++;
+        }
+        attendre(slowns);
+        deverrouiller_bloc(t.fd, i);
+    }
+
+    if (blocs_libres < blocs_necessaires) {
+        fprintf(stderr, "[ERREUR] insertgrosfichier: table trop petite (%zu blocs libres, %zu necessaires).\n", blocs_libres, blocs_necessaires);
+        munmap(contenu, st.st_size);
+        close(fd);
+        close_table(&t);
+        return -1;
+    }
+
+    long nb_threads = sysconf(_SC_NPROCESSORS_ONLN);
+    if (nb_threads <= 0) {
+        nb_threads = 1;
+    }
+
+    pthread_t threads[nb_threads];
+    thread_gros_fichier_args args[nb_threads];
+    pthread_mutex_t mutex_insert;
+    pthread_mutex_init(&mutex_insert, NULL);
+
+    size_t taille_zone = (size_t)st.st_size / (size_t)nb_threads;
+    uint32_t erreur = 0;
+
+    for (long i = 0; i < nb_threads; i++) {
+        args[i].thread_id = (int)i;
+        args[i].nom_table = nom_table;
+        args[i].t = &t;
+        args[i].contenu = contenu;
+        args[i].taille_fichier = (size_t)st.st_size;
+        args[i].debut = (size_t)i * taille_zone;
+        args[i].fin = (i == nb_threads - 1) ? (size_t)st.st_size : (size_t)(i + 1) * taille_zone;
+        args[i].mutex_insert = &mutex_insert;
+        args[i].erreur = 0;
+
+        if (pthread_create(&threads[i], NULL, insert_lignes_gros_fichier, &args[i]) != 0) {
+            perror("[ERREUR] pthread_create (insertgrosfichier)");
+            erreur = BLOC_ERREUR;
+            nb_threads = i;
+            break;
+        }
+    }
+
+    for (long i = 0; i < nb_threads; i++) {
+        pthread_join(threads[i], NULL);
+        if (args[i].erreur == BLOC_ERREUR) {
+            erreur = BLOC_ERREUR;
+        }
+    }
+
+    pthread_mutex_destroy(&mutex_insert);
+    munmap(contenu, st.st_size);
+    close(fd);
+    close_table(&t);
+
+    return erreur == BLOC_ERREUR ? -1 : 0;
 }
