@@ -243,8 +243,6 @@ int lookup_cmd(const char *nom_table, const char *chaine, const long slowns) {
             return -1;
         }
 
-        // Le nombre de versions correspond a la taille restant apres le nom
-        // termine par '\0', divisee par la taille d'un index uint32_t.
         verrouiller_bloc(t.fd, bloc_nom, F_RDLCK);
         uint32_t longueur_nom = t.table[bloc_nom].longueur;
         size_t taille = strlen(t.table[bloc_nom].obj);
@@ -255,8 +253,6 @@ int lookup_cmd(const char *nom_table, const char *chaine, const long slowns) {
         printf("[INFO] Nombre de versions associees : %u\n", nb_elements);
         printf("\nVersions disponibles :\n");
 
-        // Avant d'afficher une version, on verifie que son index est valide
-        // et qu'il pointe bien vers une entree de type TYPE_FICHIER.
         for (uint32_t k = 0; k < nb_elements; k++) {
             printf("  [%u] ", k);
 
@@ -276,7 +272,6 @@ int lookup_cmd(const char *nom_table, const char *chaine, const long slowns) {
                 continue;
             }
 
-            // affiche les metadonnees du fichier
             afficher_resume_fichier(&t, versions[k]);
         }
 
@@ -290,7 +285,6 @@ int lookup_cmd(const char *nom_table, const char *chaine, const long slowns) {
         if (fgets(choix, sizeof(choix), stdin) != NULL) {
             if (choix[0] == 'a' || choix[0] == 'A' || choix[0] == 's' || choix[0] == 'S') {
 
-                // Lorsqu'une seule version existe, il n'est pas necessaire de demander a l'utilisateur laquelle traiter.
                 if (nb_elements == 1) {
                     uint32_t k = 0;
                     verrouiller_bloc(t.fd, versions[k], F_RDLCK);
@@ -314,7 +308,6 @@ int lookup_cmd(const char *nom_table, const char *chaine, const long slowns) {
                         long modif = 0;
                         int droit = 0;
 
-                        // Un fichier peut occuper plusieurs blocs : il faut donc reconstruire l'objet complet avant d'afficher son contenu.
                         if (extraire_fichier_depuis_bloc(&t, versions[k], &objet, &contenu, &taille_contenu, nom_fichier, &modif, &droit) == 0) {
                             printf("\n===== CONTENU DU FICHIER %s version %u (bloc %u) =====\n", nom_fichier, k, versions[k]);
                             fwrite(contenu, 1, taille_contenu, stdout);
@@ -322,7 +315,6 @@ int lookup_cmd(const char *nom_table, const char *chaine, const long slowns) {
                             free(objet);
                         }
                     } else {
-                        // La sauvegarde reconstruit egalement le fichier complet, puis l'ecrit dans un nouveau fichier identifie par sa version.
                         if (sauvegarder_fichier_lookup(&t, versions[k], k) < 0) {
                             free(versions);
                             close_table(&t);
@@ -330,7 +322,6 @@ int lookup_cmd(const char *nom_table, const char *chaine, const long slowns) {
                         }
                     }
                 } else {
-                    // Plusieurs versions peuvent etre associees au meme nom, l'utilisateur choisit d'en traiter une seule ou la totalite.
                     printf("\nVoulez-vous traiter :\n");
                     printf("  [u] une seule version\n");
                     printf("  [t] toutes les versions\n");
@@ -346,8 +337,6 @@ int lookup_cmd(const char *nom_table, const char *chaine, const long slowns) {
                     if (choix_version[0] == 'u' || choix_version[0] == 'U') {
                         uint32_t k;
 
-                        // Le numero saisi est controle afin de ne jamais acceder
-                        // en dehors de la liste des versions disponibles.
                         if (lire_numero_version(nb_elements, &k) < 0) {
                             free(versions);
                             close_table(&t);
@@ -366,9 +355,6 @@ int lookup_cmd(const char *nom_table, const char *chaine, const long slowns) {
                             close_table(&t);
                             return -1;
                         }
-
-                        // Meme traitement que pour une version unique :
-                        // affichage du contenu ou sauvegarde selon le choix initial.
                         if (choix[0] == 'a' || choix[0] == 'A') {
                             char *objet = NULL;
                             char *contenu = NULL;
@@ -434,8 +420,6 @@ int lookup_cmd(const char *nom_table, const char *chaine, const long slowns) {
                     }
                 }
             } else {
-                // Le choix 'n' confirme seulement l'existence du fichier,
-                // sans reconstruire ni sauvegarder ses versions.
                 printf("[INFO] Des fichiers portant ce nom existent.\n");
             }
         }
