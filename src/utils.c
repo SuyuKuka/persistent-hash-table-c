@@ -8,8 +8,7 @@ int open_table(const char *nom_table, struct table_entree *t, const int flags_op
     }
 
     t->b = get_b(t->fd);
-    t->taille_table = t->b * sizeof(struct hache_entree);
-    t->table = mmap(NULL, t->taille_table, prot_mmap, MAP_SHARED, t->fd, 0);
+    t->table = mmap(NULL, t->b * sizeof(struct hache_entree), prot_mmap, MAP_SHARED, t->fd, 0);
     t->slowns = slowns;
     if (t->table == MAP_FAILED) {
         perror("[ERREUR] mmap");
@@ -21,7 +20,7 @@ int open_table(const char *nom_table, struct table_entree *t, const int flags_op
 }
 
 void close_table(struct table_entree *t) {
-    munmap(t->table, t->taille_table);
+    munmap(t->table, t->b * sizeof(struct hache_entree));
     close(t->fd);
 }
 
@@ -365,7 +364,6 @@ void supprimer_bloc(struct table_entree *t, uint32_t index) {
     memset(t->table[index].obj, 0, ESPACE_MAX);
     attendre(t->slowns);
     deverrouiller_bloc(t->fd, index);
-
 }
 
 void supprimer_par_derriere(struct table_entree *t, uint32_t index, int tout_supprimer) {

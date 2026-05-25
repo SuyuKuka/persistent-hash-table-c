@@ -201,7 +201,7 @@ uint32_t get_b(int fd) {
     return b;
 }
 
-int print_bloc(const char *nom_table) {
+uint32_t print_bloc(const char *nom_table) {
     struct table_entree t;
     if (open_table(nom_table, &t, O_RDONLY, PROT_READ, 0) < 0) {
         return -1;
@@ -220,7 +220,7 @@ int print_bloc(const char *nom_table) {
     uint32_t *premiere_donnee = recuperer_premiere_donnee(&t);
     if (premiere_donnee == NULL) {
         close_table(&t);
-        return -1;
+        return BLOC_ERREUR;
     }
 
     for (uint32_t i = 0; i < t.b; i++) { 
@@ -228,7 +228,7 @@ int print_bloc(const char *nom_table) {
             uint32_t *versions = recuperer_versions_fichier(&t, i);
             if (versions == NULL) {
                 free(premiere_donnee);
-                return -1;
+                return BLOC_ERREUR;
             }
 
             uint32_t offset = strlen(t.table[i].obj) + 1;
@@ -250,7 +250,7 @@ int print_bloc(const char *nom_table) {
     return 0;
 }
 
-int verrouiller_bloc(int fd, uint32_t index, short type_verrou) {
+uint32_t verrouiller_bloc(int fd, uint32_t index, short type_verrou) {
     struct flock lock;
     lock.l_type = type_verrou;
     lock.l_whence = SEEK_SET;
@@ -259,12 +259,12 @@ int verrouiller_bloc(int fd, uint32_t index, short type_verrou) {
 
     if (fcntl(fd, F_SETLKW, &lock) == -1) {
         perror("[ERREUR] fcntl verrouillage");
-        return -1;
+        return BLOC_ERREUR;
     }
     return 0;
 }
 
-int deverrouiller_bloc(int fd, uint32_t index) {
+uint32_t deverrouiller_bloc(int fd, uint32_t index) {
     struct flock lock;
     lock.l_type = F_UNLCK;
     lock.l_whence = SEEK_SET;
@@ -273,13 +273,13 @@ int deverrouiller_bloc(int fd, uint32_t index) {
 
     if (fcntl(fd, F_SETLKW, &lock) == -1) {
         perror("fcntl");
-        return -1;
+        return BLOC_ERREUR;
     }
 
     return 0;
 }
 
-int attendre(const long slowns) {
+uint32_t attendre(const long slowns) {
     if (slowns > 0) {
         struct timespec time;
         time.tv_sec = slowns / 1000000000L; 
