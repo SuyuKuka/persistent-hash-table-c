@@ -312,6 +312,7 @@ void supprimer_bloc(struct table_entree *t, uint32_t index) {
     attendre(t->slowns);
     deverrouiller_bloc(t->fd, index);
 
+    // le bloc précédent pointe sur le bloc suivant
     if (precedent != FIN_CHAINE) {
         verrouiller_bloc(t->fd, precedent, F_WRLCK);
         t->table[precedent].suivant = suivant;
@@ -319,6 +320,7 @@ void supprimer_bloc(struct table_entree *t, uint32_t index) {
         deverrouiller_bloc(t->fd, precedent);
     }
 
+    // le bloc suivant pointe sur le bloc précédent
     if (suivant != FIN_CHAINE) {
         verrouiller_bloc(t->fd, suivant, F_WRLCK);
         t->table[suivant].precedent = precedent;
@@ -326,7 +328,9 @@ void supprimer_bloc(struct table_entree *t, uint32_t index) {
         deverrouiller_bloc(t->fd, suivant);
     }
 
+    // Si on supprime l'entete
     if (precedent == FIN_CHAINE) { 
+        // Retrouver l'index de hachage d'origine (utile si son bloc a été squatter)
         uint32_t hash_origine = index;
         for (uint32_t h = 0; h < t->b; h++) {
             if (t->table[h].premier == index) {
@@ -336,12 +340,16 @@ void supprimer_bloc(struct table_entree *t, uint32_t index) {
         }
 
         verrouiller_bloc(t->fd, hash_origine, F_WRLCK);
+        // Si on est le seul bloc
         if (suivant == FIN_CHAINE) {
+            // Si le bloc a été squatter dans ce cas on remet bloc libre
             if (t->table[hash_origine].type != TYPE_VIDE && hash_origine != index) {
                 t->table[hash_origine].premier = BLOC_LIBRE;
+            // Sinon on met le hash_origine a la place
             } else {
                 t->table[hash_origine].premier = hash_origine;
             }
+        // Sinon si le bloc a un suivant le premier du bloc d'origine vaut suivant maintenant
         } else {
             t->table[hash_origine].premier = suivant;
         }
@@ -350,6 +358,7 @@ void supprimer_bloc(struct table_entree *t, uint32_t index) {
         deverrouiller_bloc(t->fd, hash_origine);
     }
 
+    // Réinitialisation du bloc
     verrouiller_bloc(t->fd, index, F_WRLCK);
     if (precedent == FIN_CHAINE && suivant != FIN_CHAINE && premier == index) {
         t->table[index].premier = suivant;
@@ -668,12 +677,14 @@ uint32_t deplacer_bloc(const char *nom_table, struct table_entree *t) {
         uint32_t longueur_i = t->table[i].longueur;
         uint32_t premier_i = t->table[i].premier;
 
+        // Si le bloc n'est pas occupé par un squatteur ou est vide alors on skip
         if (!(longueur_i == BLOC_LIBRE && premier_i != i && premier_i != BLOC_LIBRE)) {
             attendre(t->slowns);
             deverrouiller_bloc(t->fd, i);
             continue;
         }
 
+        // On copie toutes les données du squatteur à sa vrai place
         uint32_t squatter = premier_i;
         verrouiller_bloc(t->fd, squatter, F_WRLCK);
         t->table[i].premier = i;
@@ -686,6 +697,7 @@ uint32_t deplacer_bloc(const char *nom_table, struct table_entree *t) {
         uint32_t suivant_nouveau = t->table[i].suivant;
         uint32_t type_nouveau = t->table[i].type;
 
+        // On dit au bloc suivant que son précédent n'est plus le squatteur
         attendre(t->slowns);
         if (suivant_nouveau != FIN_CHAINE) {
             verrouiller_bloc(t->fd, suivant_nouveau, F_WRLCK);
@@ -694,7 +706,7 @@ uint32_t deplacer_bloc(const char *nom_table, struct table_entree *t) {
             deverrouiller_bloc(t->fd, suivant_nouveau);
         }
 
-
+        // Si on a un fichier, on met à jour l'index dans le nom de fichier
         if (type_nouveau == TYPE_FICHIER) {
             char nom_fichier[256];
             if (sscanf(t->table[i].obj, "nom:%255[^|]", nom_fichier) != 1) {
@@ -706,6 +718,7 @@ uint32_t deplacer_bloc(const char *nom_table, struct table_entree *t) {
 
             deverrouiller_bloc(t->fd, i);
 
+            // Recherche du nom de fichier
             uint32_t hash = h(nom_table, nom_fichier, strlen(nom_fichier), t->b);
             verrouiller_bloc(t->fd, hash, F_RDLCK);
             uint32_t index = t->table[hash].premier;
@@ -720,6 +733,7 @@ uint32_t deplacer_bloc(const char *nom_table, struct table_entree *t) {
                 attendre(t->slowns);
                 deverrouiller_bloc(t->fd, index);
 
+                // Si on l'a trouvé alors on met à jour l'index dans les versions du fichiers
                 if (match) {
                     uint32_t *versions = recuperer_versions_fichier(t, index);
                     if (versions == NULL) {
@@ -762,6 +776,7 @@ uint32_t deplacer_bloc(const char *nom_table, struct table_entree *t) {
             deverrouiller_bloc(t->fd, i);
         }
 
+        // Réinitialisation du bloc squatter
         if (t->table[squatter].premier == BLOC_LIBRE) {
             t->table[squatter].premier = squatter;
         }
