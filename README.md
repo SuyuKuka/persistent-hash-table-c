@@ -1,93 +1,150 @@
-# Programmation Système Avancée
+# Persistent Hash Table C
 
+## About
 
+Persistent Hash Table is an advanced C-language system programming project developed as a first-year Master's (M1 IMPAIRS) project at Université Paris Cité. Built entirely from scratch, this project demonstrates a deep understanding of advanced systems concepts, including shared memory management (`mmap`), fine-grained file-locking synchronization (`fcntl`), and concurrency control via POSIX threads (`pthread`).
 
-## Getting started
+The project features a robust multi-versioned hash table supporting both 32-bit checksums (`.cks`) and SHA-1 (`.sha`) based hashing algorithms to efficiently store and manage strings and file objects.
 
-To make it easy for you to get started with GitLab, here's a list of recommended next steps.
+*Note: As this was originally an academic project evaluated on systems architecture and robustness, the codebase emphasizes low-level memory handling, rigorous system call error management, and multi-process concurrency safety. The source code and comments might contain some French.*
 
-Already a pro? Just edit this README.md and make it your own. Want to make it easy? [Use the template at the bottom](#editing-this-readme)!
+## Tech Stack
 
-## Add your files
+- **Language:** C
+- **System Calls & APIs:** POSIX Threads (`pthread`), Memory Mapping (`mmap`), File Locking (`fcntl`)
+- **Cryptography:** OpenSSL (`libcrypto`) for SHA-1 hashing
+- **Build System:** GNU Make
 
-* [Create](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#create-a-file) or [upload](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#upload-a-file) files
-* [Add files using the command line](https://docs.gitlab.com/topics/git/add_files/#add-files-to-a-git-repository) or push an existing Git repository with the following command:
+## Key Features
 
+- **Shared Memory Backing:** Persistent storage and inter-process communication using `mmap`.
+- **Concurrency & Locking:** Robust multi-process safety utilizing fine-grained file-locking mechanisms (`fcntl`).
+- **Dynamic Resizing:** Automated extension and shrinkage of the hash table structure based on load factors.
+- **Parallel Processing:** Multi-threaded operations using `pthread` to optimize bulk data insertion and querying.
+- **Integrity & Diagnostics:** Built-in verification utilities and corruption-checking commands to ensure data consistency.
+- **Flexible Hashing:** Support for multiple hashing algorithms including 32-bit custom checksums (`.cks`) and SHA-1 (`.sha`).
+
+## Limitations & Known Issues
+
+- **Concurrency:** While fine-grained file locking (`fcntl`) and mutex mechanisms are implemented, certain high-stress parallel execution scenarios insertions may encounter race conditions or synchronization edge cases.
+
+## Projet Structure
+
+```text
+📁 hachement
+│
+├── 📁 docs/
+│   └── 📄 Rapport.pdf              # Technical architecture report
+│
+├── 📁 include/                     # Header files (.h)
+├── 📁 src/                         # C source files (.c)
+│   ├── bloc.c                      # Block management, memory mapping and locking
+│   ├── cmd.c                       # Command parsing and action handlers (make, insert, lookup, etc.)
+│   ├── hachage.c                   # Hashing algorithms (SHA-1 and 32-bit checksums)
+│   ├── main.c                      # Program entry point and argument dispatching
+│   └── utils.c                     # General helper functions and utilities
+│
+├── 📄 Makefile                     # Build configuration
+└── 📄 README.md                    # Project documentation
 ```
-cd existing_repo
-git remote add origin https://moule.informatique.univ-paris-diderot.fr/sy6-projet/programmation-systeme-avancee.git
-git branch -M main
-git push -uf origin main
+
+## Getting Started
+
+### Prerequisites
+
+* UNIX-like operating system (Linux / macOS)
+* GCC compiler supporting C99
+* GNU Make
+* OpenSSL development libraries (libssl-dev)
+
+### Installation & Compilation
+
+1. **Clone the repository:**
+```bash
+git clone https://github.com/SuyuKuka/persistent-hash-table-c
+cd persistent-hash-table-c
 ```
 
-## Integrate with your tools
+2. **Compile the project:**
+```bash
+make
+```
 
-* [Set up project integrations](https://moule.informatique.univ-paris-diderot.fr/sy6-projet/programmation-systeme-avancee/-/settings/integrations)
+3. **Cleaning build files:**
+```bash
+make clean
+```
 
-## Collaborate with your team
+### Usage
 
-* [Invite team members and collaborators](https://docs.gitlab.com/ee/user/project/members/)
-* [Create a new merge request](https://docs.gitlab.com/ee/user/project/merge_requests/creating_merge_requests.html)
-* [Automatically close issues from merge requests](https://docs.gitlab.com/ee/user/project/issues/managing_issues.html#closing-issues-automatically)
-* [Enable merge request approvals](https://docs.gitlab.com/ee/user/project/merge_requests/approvals/)
-* [Set auto-merge](https://docs.gitlab.com/user/project/merge_requests/auto_merge/)
+The program is executed via command-line parameters specifying the action, the table filename (.cks or), a delay parameter (slowns) to be able to see better concurrency, and specific arguments depending on the command:
 
-## Test and Deploy
+* **Create a new table:**
+```bash
+./hachement make table.sha 0 100
+```
 
-Use the built-in continuous integration in GitLab.
+* **Display table information and statistics:**
+```bash
+./hachement free table.sha 0
+```
 
-* [Get started with GitLab CI/CD](https://docs.gitlab.com/ee/ci/quick_start/)
-* [Analyze your code for known vulnerabilities with Static Application Security Testing (SAST)](https://docs.gitlab.com/ee/user/application_security/sast/)
-* [Deploy to Kubernetes, Amazon EC2, or Amazon ECS using Auto Deploy](https://docs.gitlab.com/ee/topics/autodevops/requirements.html)
-* [Use pull-based deployments for improved Kubernetes management](https://docs.gitlab.com/ee/user/clusters/agent/)
-* [Set up protected environments](https://docs.gitlab.com/ee/ci/environments/protected_environments.html)
+* **Insert a string:**
+```bash
+./hachement insertstring table.sha 0 "Hello World"
+```
 
-***
+* **Insert a file:**
+```bash
+./hachement insertfile table.sha 0 myfile.txt
+```
 
-# Editing this README
+* **Lookup an entry:**
+```bash
+./hachement lookup table.sha 0 "Hello World"
+```
 
-When you're ready to make this README your own, just edit this file and use the handy template below (or feel free to structure it however you want - this is just a starting point!). Thanks to [makeareadme.com](https://www.makeareadme.com/) for this template.
+* **Delete an entry with hashcode:**
+```bash
+./hachement deletehash table.sha 0 hashcode
+```
 
-## Suggestions for a good README
+* **Delete an entry:**
+```bash
+./hachement delete table.sha 0 "Hello World"
+```
 
-Every project is different, so consider which of these sections apply to yours. The sections used in the template are suggestions for most open source projects. Also keep in mind that while a README can be too long and detailed, too long is better than too short. If you think your README is too long, consider utilizing another form of documentation rather than cutting out information.
+* **Check table integrity:**
+```bash
+./hachement check table.sha 0
+```
 
-## Name
-Choose a self-explaining name for your project.
+* **Extend table size:** (double the capacity of the table)
+```bash
+./hachement extend table.sha 0
+```
 
-## Description
-Let people know what your project can do specifically. Provide context and add a link to any reference visitors might be unfamiliar with. A list of Features or a Background subsection can also be added here. If there are alternatives to your project, this is a good place to list differentiating factors.
+* **Shrink table size:** (halves the capacity of the table)
+```bash
+./hachement shrink table.sha 0
+```
 
-## Badges
-On some READMEs, you may see small images that convey metadata, such as whether or not all the tests are passing for the project. You can use Shields to add some to your README. Many services also have instructions for adding a badge.
+* **Adjust table size based on load factor:** (automatically extends if the fill rate exceeds 70%, shrinks if it drops below 10%, and does nothing otherwise)
+```bash
+./hachement ajust table.sha 0
+```
 
-## Visuals
-Depending on what you are making, it can be a good idea to include screenshots or even a video (you'll frequently see GIFs rather than actual videos). Tools like ttygif can help, but check out Asciinema for a more sophisticated method.
+## Team
 
-## Installation
-Within a particular ecosystem, there may be a common way of installing things, such as using Yarn, NuGet, or Homebrew. However, consider the possibility that whoever is reading your README is a novice and would like more guidance. Listing specific steps helps remove ambiguity and gets people to using your project as quickly as possible. If it only runs in a specific context like a particular programming language version or operating system or has dependencies that have to be installed manually, also add a Requirements subsection.
+This project was developed collaboratively as a 2-person team:
 
-## Usage
-Use examples liberally, and show the expected output if you can. It's helpful to have inline the smallest example of usage that you can demonstrate, while providing links to more sophisticated examples if they are too long to reasonably include in the README.
+- **CHEN Michel** - System Architecture & C Implementation
+  [![GitHub](https://img.shields.io/badge/GitHub-Profile-181717?logo=github)](https://github.com/SuyuKuka)
+  [![LinkedIn](https://img.shields.io/badge/LinkedIn-Profile-0A66C2?logo=linkedin)](https://linkedin.com/in/chen-michel)
 
-## Support
-Tell people where they can go to for help. It can be any combination of an issue tracker, a chat room, an email address, etc.
-
-## Roadmap
-If you have ideas for releases in the future, it is a good idea to list them in the README.
-
-## Contributing
-State if you are open to contributions and what your requirements are for accepting them.
-
-For people who want to make changes to your project, it's helpful to have some documentation on how to get started. Perhaps there is a script that they should run or some environment variables that they need to set. Make these steps explicit. These instructions could also be useful to your future self.
-
-You can also document commands to lint the code or run tests. These steps help to ensure high code quality and reduce the likelihood that the changes inadvertently break something. Having instructions for running tests is especially helpful if it requires external setup, such as starting a Selenium server for testing in a browser.
-
-## Authors and acknowledgment
-Show your appreciation to those who have contributed to the project.
+- **MA Qian En** - System Architecture & C Implementation
+  [![GitHub](https://img.shields.io/badge/GitHub-Profile-181717?logo=github)](https://github.com/not_found)
 
 ## License
-For open source projects, say how it is licensed.
 
-## Project status
-If you have run out of energy or time for your project, put a note at the top of the README saying that development has slowed down or stopped completely. Someone may choose to fork your project or volunteer to step in as a maintainer or owner, allowing your project to keep going. You can also make an explicit request for maintainers.
+This project is licensed under the GPL 3.0 License — see [LICENSE](LICENSE) for details.
