@@ -246,9 +246,9 @@ int main(int argc, char *argv[]) {
     }
 
     // Pour pouvoir voir l'état de la table après la commande
-    // if (print_bloc(argv[2]) == BLOC_ERREUR) {
-    //     return EXIT_FAILURE;
-    // }
+    if (print_bloc(argv[2]) == BLOC_ERREUR) {
+        return EXIT_FAILURE;
+    }
     
     return handle;
 }
