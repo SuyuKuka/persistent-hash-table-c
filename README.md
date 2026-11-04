@@ -143,7 +143,6 @@ This project was developed collaboratively as a 2-person team:
   [![LinkedIn](https://img.shields.io/badge/LinkedIn-Profile-0A66C2?logo=linkedin)](https://linkedin.com/in/chen-michel)
 
 - **MA Qian En** - System Architecture & C Implementation
-  [![GitHub](https://img.shields.io/badge/GitHub-Profile-181717?logo=github)](https://github.com/not_found)
 
 ## License
 
